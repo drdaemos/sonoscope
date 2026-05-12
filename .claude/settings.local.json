@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"e:\\\\Repos\\\\sonoscope\\\\docs\")"
+    ],
+    "additionalDirectories": [
+      "e:\\Repos\\sonoscope"
+    ]
+  }
+}
