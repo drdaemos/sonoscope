@@ -46,7 +46,7 @@ Goal: user can open a folder, discover audio files, and see them in a basic list
 | Discovery progress events | Implemented | Emits `discovery-progress`, `discovery-complete`, and `discovery-cancelled`. |
 | Generated command bindings | Implemented | `openLibrary`, `startDiscovery`, `cancelDiscovery`, `getSamples`. |
 | Library selector UI | In progress | Header selector opens libraries, shows the selected library name, and stores five recent libraries in localStorage. |
-| Basic file list UI | In progress | `FileList.svelte` shows filename, path, tags, conflict state, format, and size using shared UI primitives. |
+| Basic file list UI | In progress | `FileList.svelte` shows filename, path subtitle, primary/secondary tags, conflict state, format, and size using shared UI primitives. |
 
 ## Phase 2 — UI Foundation
 
@@ -74,9 +74,9 @@ Goal: files are analyzed by filename heuristics; tags appear in the list.
 | Filename/path heuristics | Implemented | 50+ parametrized cases in `analyzer/tests/test_heuristics.py`. |
 | Metadata extraction | Implemented | Mutagen + SoundFile coverage in `analyzer/tests/test_metadata.py`. |
 | Rust sidecar process manager | In progress | Long-lived uv-managed analyzer client exists; ignored Rust integration test passes when explicitly run with process-spawn access. |
-| Tags schema migration | Implemented | `src-tauri/migrations/002_tags.sql`. |
+| Tags schema migration | Implemented | `src-tauri/migrations/002_tags.sql`, `003_expanded_tag_values.sql`, and `004_primary_tags.sql`. |
 | Seed system dimensions/values | Implemented | Covered by `test_open_seeds_system_tag_dimensions`; includes the expanded heuristic Type/Instrument vocabulary. |
-| Analysis orchestrator | Implemented | Queues pending samples, supports full-library reanalysis after re-scan, dispatches to analyzer, persists auto-tags, and updates status. |
+| Analysis orchestrator | Implemented | Queues pending samples, supports full-library reanalysis after re-scan, dispatches to analyzer, persists auto-tags, marks auto-primary tags, and updates status. |
 | Tag columns in file list | Implemented | Type + Instrument chips are shown in `FileList.svelte`. |
 | Analysis progress badge | Implemented | Header uses one scan/analyze pipeline action with progress state; completed libraries show `Re-scan` and requeue samples for analysis. |
 
@@ -88,13 +88,13 @@ Goal: user can review and edit tags; filtering and search work.
 |---|---|---|
 | Filter sidebar | Implemented | Dimension chips with counts for Type, Instrument, and Key in `FilterSidebar.svelte`; verified by `npm run check` and `npm run build`. |
 | Filename search | Implemented | Real-time filename substring filter in `src/lib/stores/review.ts`; verified by `npm run check` and `npm run build`. |
-| Sortable columns | Implemented | Filename, path, Type, and Instrument sorting in `FileList.svelte`; verified by `npm run check` and `npm run build`. |
-| Inline tag editing | In progress | Type and Instrument user-tag editing is wired; broader dimension support and stronger UX states remain. |
+| Sortable columns | Implemented | Sample, Type, and Instrument sorting in `FileList.svelte`; verified by `npm run check` and `npm run build`. |
+| Inline tag editing | In progress | Type and Instrument primary-tag selection is wired; broader dimension support and stronger UX states remain. |
 | Bulk tag editor | In progress | Multi-select action bar supports Type/Instrument set and clear; broader dimension support remains. |
-| Conflict indicator and panel | In progress | Client-side auto-tag conflict indicator exists; query-time conflict detection and detail panel remain. |
+| Conflict indicator and panel | In progress | Backend conflict data now excludes multi-value dimensions; current inline panel is functional but needs visual redesign into a primary/alternatives UI. |
 | `tags::set_user_tag` command | Implemented | Typed `set_user_tag` command and generated `commands.setUserTag`; covered by `test_user_tag_write_and_clear_preserves_auto_tags`. |
 | `tags::clear_user_tag` command | Implemented | Typed `clear_user_tag` command and generated `commands.clearUserTag`; covered by `test_user_tag_write_and_clear_preserves_auto_tags`. |
-| Conflict query tests | Not started | DB integration coverage required. |
+| Conflict query tests | Implemented | `test_conflict_query_returns_unresolved_auto_tag_conflicts`. |
 
 ## Phase 5 — ML Analysis
 

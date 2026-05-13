@@ -4,7 +4,21 @@
   import { ChevronDown, RefreshCw, X } from "@lucide/svelte";
   import { onMount } from "svelte";
   import { commands, type CommandError } from "$lib/bindings/bindings";
-  import { Badge, Button, Tabs, TabsList, TabsTrigger } from "$lib/components/ui";
+  import {
+    Badge,
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    Progress,
+    Tabs,
+    TabsList,
+    TabsTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+  } from "$lib/components/ui";
   import {
     analysisProcessed,
     analysisTotal,
@@ -30,6 +44,8 @@
   let analysisUnlisten: (() => void) | null = null;
   let openError = $state<{ summary: string; detail: string } | null>(null);
   let recentMenuOpen = $state(false);
+
+  let tabValue = $derived(activeView);
 
   onMount(() => {
     return () => {
@@ -191,10 +207,6 @@
     return 0;
   }
 
-  function toggleRecentMenu() {
-    recentMenuOpen = !recentMenuOpen;
-  }
-
   function formatCommandError(error: CommandError): { summary: string; detail: string } {
     if (typeof error === "string") {
       return { summary: error, detail: error };
@@ -228,7 +240,7 @@
   }
 </script>
 
-<header class="grid h-14 shrink-0 grid-cols-[180px_1fr_auto] items-center gap-4 border-b bg-background px-4">
+<header class="grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 border-b bg-background px-4">
   <div class="flex min-w-0 items-center gap-3">
     <div class="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
       <RefreshCw class="size-4" />
@@ -236,21 +248,19 @@
     <div class="truncate text-sm font-semibold">Sonoscope</div>
   </div>
 
-  <Tabs class="justify-center">
+  <Tabs
+    value={tabValue}
+    onValueChange={(v) => { if (v) onViewChange(v as AppView); }}
+    class="items-center"
+  >
     <TabsList>
-      <TabsTrigger active={activeView === "review"} onclick={() => onViewChange("review")}>
-        Review
-      </TabsTrigger>
-      <TabsTrigger active={activeView === "organise"} onclick={() => onViewChange("organise")}>
-        Organise
-      </TabsTrigger>
-      <TabsTrigger active={activeView === "history"} onclick={() => onViewChange("history")}>
-        History
-      </TabsTrigger>
+      <TabsTrigger value="review">Review</TabsTrigger>
+      <TabsTrigger value="organise">Organise</TabsTrigger>
+      <TabsTrigger value="history">History</TabsTrigger>
     </TabsList>
   </Tabs>
 
-  <div class="flex items-center justify-end gap-2">
+  <div class="flex min-w-0 items-center justify-end gap-2">
     {#if $isDiscovering}
       <Button variant="outline" size="sm" onclick={cancelScan}>
         <X />
@@ -259,7 +269,12 @@
     {/if}
 
     {#if openError}
-      <Badge variant="destructive" title={openError.detail}>{openError.summary}</Badge>
+      <Tooltip>
+        <TooltipTrigger>
+          <Badge variant="destructive">{openError.summary}</Badge>
+        </TooltipTrigger>
+        <TooltipContent>{openError.detail}</TooltipContent>
+      </Tooltip>
     {/if}
 
     {#if $isDiscovering || $isAnalyzing}
@@ -269,12 +284,7 @@
             ? `${$discoveryCount} discovered`
             : `${$analysisProcessed} / ${$analysisTotal} analysed`}
         </Badge>
-        <div class="h-1 overflow-hidden rounded-full bg-muted">
-          <div
-            class="h-full bg-primary transition-[width]"
-            style={`width: ${progressPercent()}%`}
-          ></div>
-        </div>
+        <Progress value={progressPercent()} class="h-1" />
       </div>
     {/if}
 
@@ -292,7 +302,7 @@
       </div>
     {/if}
 
-    <div class="relative flex">
+    <div class="flex">
       <Button
         variant="outline"
         size="sm"
@@ -304,34 +314,35 @@
           {$currentLibrary ? libraryDisplayName($currentLibrary.root_path) : "Open Library"}
         </span>
       </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        class="h-8 w-8 rounded-l-none"
-        aria-label="Recent libraries"
-        onclick={toggleRecentMenu}
-      >
-        <ChevronDown />
-      </Button>
 
-      {#if recentMenuOpen}
-        <div
-          class="absolute right-0 top-9 z-50 w-64 overflow-hidden rounded-md border bg-popover py-1 text-sm shadow-md"
-        >
-          {#each $recentLibraries.filter((library) => library.path !== $currentLibrary?.root_path) as library}
-            <button
-              type="button"
-              class="flex w-full flex-col px-3 py-2 text-left hover:bg-accent"
-              onclick={() => openLibraryPath(library.path)}
+      <DropdownMenu bind:open={recentMenuOpen}>
+        <DropdownMenuTrigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              variant="outline"
+              size="icon-sm"
+              class="rounded-l-none"
+              aria-label="Recent libraries"
             >
-              <span class="truncate font-medium">{library.name}</span>
-              <span class="truncate text-xs text-muted-foreground">{library.path}</span>
-            </button>
+              <ChevronDown />
+            </Button>
+          {/snippet}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="w-64">
+          {#each $recentLibraries.filter((library) => library.path !== $currentLibrary?.root_path) as library}
+            <DropdownMenuItem onclick={() => openLibraryPath(library.path)}>
+              <div class="flex flex-col">
+                <span class="truncate font-medium">{library.name}</span>
+                <span class="truncate text-xs text-muted-foreground">{library.path}</span>
+              </div>
+            </DropdownMenuItem>
           {:else}
-            <div class="px-3 py-2 text-xs text-muted-foreground">No recent libraries</div>
+            <DropdownMenuItem disabled>No recent libraries</DropdownMenuItem>
           {/each}
-        </div>
-      {/if}
+          <DropdownMenuItem onclick={pickLibrary}>Browse...</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   </div>
 </header>

@@ -112,15 +112,18 @@ Tag assignments — one row per (sample, dimension, value, source) combination. 
 | `source` | TEXT NOT NULL | `heuristic` \| `metadata` \| `model` \| `user` |
 | `confidence` | REAL | 0.0–1.0; NULL for user-source tags |
 | `created_at` | INTEGER NOT NULL | unix timestamp |
+| `is_primary` | INTEGER NOT NULL DEFAULT 0 | primary value for display, sorting, and organisation |
 | UNIQUE | | `(sample_id, dimension_id, value_id, source)` |
 
 **Tag resolution rules:**
 - All tags (from all sources) are stored and preserved.
-- For display and export, `user`-source tags take precedence over auto-source tags on the same dimension.
-- If the user deletes their tag, auto-source tags resurface.
+- Each sample/dimension may have one primary tag used for display, sorting, and organisation.
+- Analysis marks the highest-confidence auto tag for each dimension as primary.
+- User selection marks the chosen value as primary without deleting other auto-source tags.
+- If the user deletes their tag, an auto-source primary is restored.
 
 **Conflict detection (computed, not stored):**
-A conflict exists on a (sample, dimension) pair when there are two or more auto-source tags (`source != 'user'`) with different values on the same dimension. Conflicts are computed at query time — no separate conflict table. The query groups by `(sample_id, dimension_id)` over non-user tags and flags rows where more than one distinct value exists.
+Conflicts are reserved for single-value dimensions where competing auto-source values are mutually exclusive. Multi-value dimensions such as `Instrument` can validly have multiple values, so additional values are alternatives rather than conflicts.
 
 ---
 

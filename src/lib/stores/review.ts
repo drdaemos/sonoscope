@@ -1,5 +1,5 @@
 import { derived, writable } from "svelte/store";
-import { samples, type SampleRow } from "$lib/stores/library";
+import { samples, type SampleRow, type SampleTag } from "$lib/stores/library";
 
 export type SortKey = "filename" | "relative_path" | "type" | "instrument";
 export type SortDirection = "asc" | "desc";
@@ -77,21 +77,28 @@ export function tagValues(sample: SampleRow, dimension: string): string[] {
 }
 
 export function displayTagValues(sample: SampleRow, dimension: string): string[] {
-  const userValues = sample.tags
-    .filter((tag) => tag.dimension === dimension && tag.source === "user")
-    .map((tag) => tag.value);
-  return userValues.length > 0 ? userValues : tagValues(sample, dimension);
+  return displayTags(sample, dimension).map((tag) => tag.value);
+}
+
+export function displayTags(sample: SampleRow, dimension: string): SampleTag[] {
+  const seen = new Set<string>();
+  return sample.tags
+    .filter((tag) => tag.dimension === dimension)
+    .sort((a, b) => {
+      if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+      if (a.source === "user" && b.source !== "user") return -1;
+      if (a.source !== "user" && b.source === "user") return 1;
+      return (b.confidence ?? 0) - (a.confidence ?? 0);
+    })
+    .filter((tag) => {
+      if (seen.has(tag.value)) return false;
+      seen.add(tag.value);
+      return true;
+    });
 }
 
 export function hasConflict(sample: SampleRow): boolean {
-  const byDimension = new Map<string, Set<string>>();
-  for (const tag of sample.tags) {
-    if (tag.source === "user") continue;
-    const values = byDimension.get(tag.dimension) ?? new Set<string>();
-    values.add(tag.value);
-    byDimension.set(tag.dimension, values);
-  }
-  return [...byDimension.values()].some((values) => values.size > 1);
+  return sample.conflicts.length > 0;
 }
 
 export function toggleFilterValue(dimension: string, value: string) {

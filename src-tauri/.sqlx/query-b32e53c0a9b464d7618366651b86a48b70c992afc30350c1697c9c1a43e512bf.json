@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT 1 as \"exists!: i64\"\n         FROM tags\n         WHERE sample_id = ?\n           AND dimension_id = ?\n           AND source = 'user'\n           AND is_primary = 1\n         LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists!: i64",
+        "ordinal": 0,
+        "type_info": "Null"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b32e53c0a9b464d7618366651b86a48b70c992afc30350c1697c9c1a43e512bf"
+}

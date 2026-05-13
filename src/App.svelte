@@ -3,7 +3,7 @@
   import FileList from "$lib/components/FileList.svelte";
   import FilterSidebar from "$lib/components/FilterSidebar.svelte";
   import LibraryBar, { type AppView } from "$lib/components/LibraryBar.svelte";
-  import { Badge, Button, Card, Separator } from "$lib/components/ui";
+  import { Badge, Button, Card, CardHeader, CardTitle, CardContent, Separator, Slider } from "$lib/components/ui";
   import { currentLibrary, samples } from "$lib/stores/library";
 
   let activeView: AppView = "review";
@@ -21,7 +21,7 @@
           <div class="flex items-center gap-2">
             <ListMusic class="size-4 text-muted-foreground" />
             <h1 class="text-sm font-medium">Review</h1>
-            <Badge variant="muted">
+            <Badge variant="secondary">
               {$currentLibrary ? `${$samples.length} files` : "No library"}
             </Badge>
           </div>
@@ -33,11 +33,15 @@
           <h1 class="text-sm font-medium">Organise</h1>
         </div>
         <div class="grid flex-1 place-items-center p-6">
-          <Card class="w-full max-w-xl p-6">
-            <h2 class="text-base font-semibold">Organisation workflow</h2>
-            <p class="mt-2 text-sm text-muted-foreground">
-              Pattern presets, preview, and apply controls will be added after tagging data exists.
-            </p>
+          <Card class="w-full max-w-xl">
+            <CardHeader>
+              <CardTitle>Organisation workflow</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p class="text-sm text-muted-foreground">
+                Pattern presets, preview, and apply controls will be added after tagging data exists.
+              </p>
+            </CardContent>
           </Card>
         </div>
       {:else}
@@ -46,11 +50,15 @@
           <h1 class="text-sm font-medium">History</h1>
         </div>
         <div class="grid flex-1 place-items-center p-6">
-          <Card class="w-full max-w-xl p-6">
-            <h2 class="text-base font-semibold">Operation history</h2>
-            <p class="mt-2 text-sm text-muted-foreground">
-              Move/copy batches and rollback controls will appear here once file operations exist.
-            </p>
+          <Card class="w-full max-w-xl">
+            <CardHeader>
+              <CardTitle>Operation history</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p class="text-sm text-muted-foreground">
+                Move/copy batches and rollback controls will appear here once file operations exist.
+              </p>
+            </CardContent>
           </Card>
         </div>
       {/if}
@@ -64,7 +72,7 @@
       <Play />
     </Button>
     <div class="min-w-48 text-muted-foreground">No sample loaded</div>
-    <div class="h-2 flex-1 rounded-full bg-muted"></div>
+    <Slider type="single" value={0} max={100} step={1} disabled class="flex-1" />
     <div class="w-20 text-right text-xs text-muted-foreground">0:00 / 0:00</div>
   </footer>
 </div>

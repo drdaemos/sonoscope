@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE tags\n         SET is_primary = 1\n         WHERE sample_id = ?\n           AND dimension_id = ?\n           AND value_id = ?\n           AND source = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "f8387117fe0efd4193fb6ada33ee7312532a17dfe0bc5d52909d05af7485df24"
+}

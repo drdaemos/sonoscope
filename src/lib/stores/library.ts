@@ -1,7 +1,7 @@
 import { writable } from "svelte/store";
-import type { AnalysisStatus, LibraryMeta, SampleRow } from "$lib/bindings/bindings";
+import type { AnalysisStatus, LibraryMeta, SampleRow, SampleTag } from "$lib/bindings/bindings";
 
-export type { AnalysisStatus, LibraryMeta, SampleRow };
+export type { AnalysisStatus, LibraryMeta, SampleRow, SampleTag };
 
 export type RecentLibrary = {
   path: string;

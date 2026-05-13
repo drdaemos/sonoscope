@@ -36,7 +36,11 @@
       "Bash(npm ls *)",
       "Bash(cargo test *)",
       "Bash(npx shadcn-svelte@latest init --no-deps)",
-      "Bash(xargs grep -l \"FieldAttrs\\\\|field_attr\\\\|\\\\\"as\\\\\"\\\\|#\\\\[specta\")"
+      "Bash(xargs grep -l \"FieldAttrs\\\\|field_attr\\\\|\\\\\"as\\\\\"\\\\|#\\\\[specta\")",
+      "WebFetch(domain:shadcn-svelte.com)",
+      "PowerShell(npm run *)",
+      "PowerShell(npm install *)",
+      "PowerShell(npm test *)"
     ]
   }
 }

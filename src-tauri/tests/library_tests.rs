@@ -243,6 +243,21 @@ async fn test_user_tag_write_and_clear_preserves_auto_tags() {
             .await
             .unwrap();
     assert_eq!(user_count, 1);
+    let (user_primary_count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM tags WHERE sample_id = ? AND source = 'user' AND is_primary = 1",
+    )
+    .bind(sample_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let (auto_after_user_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM tags WHERE sample_id = ? AND source = 'heuristic'")
+            .bind(sample_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(user_primary_count, 1);
+    assert_eq!(auto_after_user_count, 1);
 
     sonoscope_lib::commands::clear_user_tag_for_dimension(&pool, sample_id, dimension_id)
         .await
@@ -263,6 +278,79 @@ async fn test_user_tag_write_and_clear_preserves_auto_tags() {
 
     assert_eq!(auto_count, 1);
     assert_eq!(remaining_user_count, 0);
+    let (auto_primary_count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM tags WHERE sample_id = ? AND source = 'heuristic' AND is_primary = 1",
+    )
+    .bind(sample_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(auto_primary_count, 1);
+}
+
+#[tokio::test]
+async fn test_conflict_query_returns_unresolved_auto_tag_conflicts() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("loop.wav"), b"fake").unwrap();
+
+    let pool = make_pool(&dir).await;
+    sonoscope_lib::library::open::open_or_create_library(dir.path().to_str().unwrap(), &pool)
+        .await
+        .unwrap();
+    sonoscope_lib::library::discover::run_discovery(dir.path(), &pool, |_| {})
+        .await
+        .unwrap();
+
+    let (sample_id,): (i64,) = sqlx::query_as("SELECT id FROM samples LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let dimension_id = 1_i64;
+    let (loop_value_id,): (i64,) =
+        sqlx::query_as("SELECT id FROM dimension_values WHERE dimension_id = 1 AND value = 'loop'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let (one_shot_value_id,): (i64,) = sqlx::query_as(
+        "SELECT id FROM dimension_values WHERE dimension_id = 1 AND value = 'one-shot'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO tags
+         (sample_id, dimension_id, value_id, source, confidence, created_at)
+         VALUES (?, ?, ?, 'heuristic', 0.8, 1), (?, ?, ?, 'model', 0.7, 1)",
+    )
+    .bind(sample_id)
+    .bind(dimension_id)
+    .bind(loop_value_id)
+    .bind(sample_id)
+    .bind(dimension_id)
+    .bind(one_shot_value_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let conflicts = sonoscope_lib::commands::conflicts_for_sample(&pool, sample_id)
+        .await
+        .unwrap();
+    assert_eq!(conflicts.len(), 1);
+    assert_eq!(conflicts[0].dimension, "Type");
+    assert_eq!(conflicts[0].candidates.len(), 2);
+
+    sonoscope_lib::commands::write_user_tag(&pool, sample_id, "Type", "loop")
+        .await
+        .unwrap();
+
+    let resolved_conflicts = sonoscope_lib::commands::conflicts_for_sample(&pool, sample_id)
+        .await
+        .unwrap();
+    assert!(
+        resolved_conflicts.is_empty(),
+        "user tag should resolve auto-tag conflicts for the dimension"
+    );
 }
 
 #[tokio::test]

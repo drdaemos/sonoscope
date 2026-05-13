@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE tags SET is_primary = 1 WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "35f3b4b69a622d7b307e4183c47c24e64cb9ac288c0eef3e6dd5959c3fcebeff"
+}

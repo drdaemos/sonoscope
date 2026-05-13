@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: i64\"\n         FROM tags\n         WHERE sample_id = ?\n           AND dimension_id = ?\n           AND source != 'user'\n         ORDER BY confidence DESC, id ASC\n         LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "0e7772405994ceb98a2b619be801e6850b600ae3d07c2fd209a476da42bab527"
+}

@@ -24,6 +24,7 @@ pub struct SampleRow {
     pub size_bytes: Option<i64>,
     pub analysis_status: AnalysisStatus,
     pub tags: Vec<SampleTag>,
+    pub conflicts: Vec<TagConflict>,
 }
 
 #[derive(Debug, Serialize, Type)]
@@ -32,6 +33,13 @@ pub struct SampleTag {
     pub value: String,
     pub source: TagSource,
     pub confidence: Option<f64>,
+    pub is_primary: bool,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct TagConflict {
+    pub dimension: String,
+    pub candidates: Vec<SampleTag>,
 }
 
 #[tauri::command]
@@ -145,6 +153,7 @@ pub async fn get_samples(state: State<'_, AppState>) -> Result<Vec<SampleRow>, C
     let mut samples = Vec::with_capacity(rows.len());
     for r in rows {
         let tags = sample_tags(pool, r.id).await?;
+        let conflicts = conflicts_for_sample(pool, r.id).await?;
         samples.push(SampleRow {
             id: r.id,
             filename: r.filename,
@@ -153,6 +162,7 @@ pub async fn get_samples(state: State<'_, AppState>) -> Result<Vec<SampleRow>, C
             size_bytes: r.size_bytes,
             analysis_status: r.analysis_status,
             tags,
+            conflicts,
         });
     }
 
@@ -182,21 +192,15 @@ pub async fn clear_user_tag(
     let guard = state.db.lock().await;
     let pool = guard.as_ref().ok_or(CommandError::NoLibraryOpen)?;
     let sample_id = i64::from(sample_id);
-
-    let user_source = TagSource::User;
-    sqlx::query!(
-        "DELETE FROM tags
-         WHERE sample_id = ?
-           AND source = ?
-           AND dimension_id = (SELECT id FROM dimensions WHERE name = ?)",
-        sample_id,
-        user_source,
+    let dimension = sqlx::query!(
+        "SELECT id as \"id!: i64\" FROM dimensions WHERE name = ?",
         dimension,
     )
-    .execute(pool)
-    .await?;
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| CommandError::Other("Unknown dimension".to_string()))?;
 
-    Ok(())
+    clear_user_tag_for_dimension(pool, sample_id, dimension.id).await
 }
 
 async fn sample_tags(
@@ -207,12 +211,13 @@ async fn sample_tags(
         "SELECT d.name as dimension,
                 COALESCE(dv.value, CAST(t.numeric_value AS TEXT), t.text_value) as \"value: String\",
                 t.source as \"source: TagSource\",
-                t.confidence
+                t.confidence,
+                t.is_primary as \"is_primary: bool\"
          FROM tags t
          JOIN dimensions d ON d.id = t.dimension_id
          LEFT JOIN dimension_values dv ON dv.id = t.value_id
          WHERE t.sample_id = ?
-         ORDER BY d.sort_order, value",
+         ORDER BY d.sort_order, t.is_primary DESC, value",
         sample_id,
     )
     .fetch_all(pool)
@@ -226,9 +231,88 @@ async fn sample_tags(
                 value,
                 source: row.source,
                 confidence: row.confidence,
+                is_primary: row.is_primary,
             })
         })
         .collect())
+}
+
+pub async fn conflicts_for_sample(
+    pool: &sqlx::SqlitePool,
+    sample_id: i64,
+) -> Result<Vec<TagConflict>, CommandError> {
+    let user_source = TagSource::User;
+    let rows = sqlx::query!(
+        "SELECT d.name as dimension,
+                COALESCE(dv.value, CAST(t.numeric_value AS TEXT), t.text_value) as \"value: String\",
+                t.source as \"source: TagSource\",
+                t.confidence,
+                t.is_primary as \"is_primary: bool\"
+         FROM tags t
+         JOIN dimensions d ON d.id = t.dimension_id
+         LEFT JOIN dimension_values dv ON dv.id = t.value_id
+         WHERE t.sample_id = ?
+           AND t.source != ?
+           AND NOT EXISTS (
+             SELECT 1
+             FROM tags user_tag
+             WHERE user_tag.sample_id = t.sample_id
+               AND user_tag.dimension_id = t.dimension_id
+               AND user_tag.source = ?
+           )
+           AND d.value_type != 'multi_enum'
+           AND t.dimension_id IN (
+             SELECT conflict_tag.dimension_id
+             FROM tags conflict_tag
+             JOIN dimensions conflict_dimension ON conflict_dimension.id = conflict_tag.dimension_id
+             WHERE conflict_tag.sample_id = ?
+               AND conflict_tag.source != ?
+               AND conflict_dimension.value_type != 'multi_enum'
+             GROUP BY conflict_tag.dimension_id
+             HAVING COUNT(DISTINCT COALESCE(CAST(value_id AS TEXT), CAST(numeric_value AS TEXT), text_value)) > 1
+           )
+         ORDER BY d.sort_order, value",
+        sample_id,
+        user_source,
+        user_source,
+        sample_id,
+        user_source,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut conflicts: Vec<TagConflict> = Vec::new();
+    for row in rows {
+        let Some(value) = row.value else {
+            continue;
+        };
+
+        if let Some(conflict) = conflicts
+            .iter_mut()
+            .find(|conflict| conflict.dimension == row.dimension)
+        {
+            conflict.candidates.push(SampleTag {
+                dimension: row.dimension,
+                value,
+                source: row.source,
+                confidence: row.confidence,
+                is_primary: row.is_primary,
+            });
+        } else {
+            conflicts.push(TagConflict {
+                dimension: row.dimension.clone(),
+                candidates: vec![SampleTag {
+                    dimension: row.dimension,
+                    value,
+                    source: row.source,
+                    confidence: row.confidence,
+                    is_primary: row.is_primary,
+                }],
+            });
+        }
+    }
+
+    Ok(conflicts)
 }
 
 pub async fn write_user_tag(
@@ -245,14 +329,14 @@ pub async fn write_user_tag(
     .await?
     .ok_or_else(|| CommandError::Other(format!("Unknown dimension: {dimension_name}")))?;
 
-    clear_user_tag_for_dimension(pool, sample_id, dimension.id).await?;
+    clear_primary_tag_for_dimension(pool, sample_id, dimension.id).await?;
 
     let user_source = TagSource::User;
     let now = unix_now();
     match dimension.value_type {
         DimensionValueType::Enum | DimensionValueType::MultiEnum => {
             let value_row = sqlx::query!(
-                "SELECT id FROM dimension_values WHERE dimension_id = ? AND value = ?",
+                "SELECT id as \"id!: i64\" FROM dimension_values WHERE dimension_id = ? AND value = ?",
                 dimension.id,
                 value,
             )
@@ -265,9 +349,9 @@ pub async fn write_user_tag(
             })?;
 
             sqlx::query!(
-                "INSERT INTO tags
-                 (sample_id, dimension_id, value_id, source, confidence, created_at)
-                 VALUES (?, ?, ?, ?, NULL, ?)",
+                "INSERT OR IGNORE INTO tags
+                 (sample_id, dimension_id, value_id, source, confidence, created_at, is_primary)
+                 VALUES (?, ?, ?, ?, NULL, ?, 0)",
                 sample_id,
                 dimension.id,
                 value_row.id,
@@ -276,6 +360,7 @@ pub async fn write_user_tag(
             )
             .execute(pool)
             .await?;
+            set_primary_value_tag(pool, sample_id, dimension.id, value_row.id, user_source).await?;
         }
         DimensionValueType::Numeric => {
             let numeric_value = value
@@ -283,8 +368,8 @@ pub async fn write_user_tag(
                 .map_err(|_| CommandError::Other(format!("{value} is not a valid number")))?;
             sqlx::query!(
                 "INSERT INTO tags
-                 (sample_id, dimension_id, numeric_value, source, confidence, created_at)
-                 VALUES (?, ?, ?, ?, NULL, ?)",
+                 (sample_id, dimension_id, numeric_value, source, confidence, created_at, is_primary)
+                 VALUES (?, ?, ?, ?, NULL, ?, 0)",
                 sample_id,
                 dimension.id,
                 numeric_value,
@@ -293,12 +378,14 @@ pub async fn write_user_tag(
             )
             .execute(pool)
             .await?;
+            set_primary_numeric_tag(pool, sample_id, dimension.id, numeric_value, user_source)
+                .await?;
         }
         DimensionValueType::Text => {
             sqlx::query!(
                 "INSERT INTO tags
-                 (sample_id, dimension_id, text_value, source, confidence, created_at)
-                 VALUES (?, ?, ?, ?, NULL, ?)",
+                 (sample_id, dimension_id, text_value, source, confidence, created_at, is_primary)
+                 VALUES (?, ?, ?, ?, NULL, ?, 0)",
                 sample_id,
                 dimension.id,
                 value,
@@ -307,9 +394,26 @@ pub async fn write_user_tag(
             )
             .execute(pool)
             .await?;
+            set_primary_text_tag(pool, sample_id, dimension.id, value, user_source).await?;
         }
     }
 
+    Ok(())
+}
+
+pub async fn clear_primary_tag_for_dimension(
+    pool: &sqlx::SqlitePool,
+    sample_id: i64,
+    dimension_id: i64,
+) -> Result<(), CommandError> {
+    sqlx::query!(
+        "UPDATE tags SET is_primary = 0 WHERE sample_id = ? AND dimension_id = ?",
+        sample_id,
+        dimension_id,
+    )
+    .execute(pool)
+    .await?;
+    mark_auto_primary_for_dimension(pool, sample_id, dimension_id).await?;
     Ok(())
 }
 
@@ -327,6 +431,129 @@ pub async fn clear_user_tag_for_dimension(
     )
     .execute(pool)
     .await?;
+    Ok(())
+}
+
+async fn set_primary_value_tag(
+    pool: &sqlx::SqlitePool,
+    sample_id: i64,
+    dimension_id: i64,
+    value_id: i64,
+    source: TagSource,
+) -> Result<(), CommandError> {
+    sqlx::query!(
+        "UPDATE tags
+         SET is_primary = 1
+         WHERE sample_id = ?
+           AND dimension_id = ?
+           AND value_id = ?
+           AND source = ?",
+        sample_id,
+        dimension_id,
+        value_id,
+        source,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn set_primary_numeric_tag(
+    pool: &sqlx::SqlitePool,
+    sample_id: i64,
+    dimension_id: i64,
+    numeric_value: f64,
+    source: TagSource,
+) -> Result<(), CommandError> {
+    sqlx::query!(
+        "UPDATE tags
+         SET is_primary = 1
+         WHERE sample_id = ?
+           AND dimension_id = ?
+           AND numeric_value = ?
+           AND source = ?",
+        sample_id,
+        dimension_id,
+        numeric_value,
+        source,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn set_primary_text_tag(
+    pool: &sqlx::SqlitePool,
+    sample_id: i64,
+    dimension_id: i64,
+    value: &str,
+    source: TagSource,
+) -> Result<(), CommandError> {
+    sqlx::query!(
+        "UPDATE tags
+         SET is_primary = 1
+         WHERE sample_id = ?
+           AND dimension_id = ?
+           AND text_value = ?
+           AND source = ?",
+        sample_id,
+        dimension_id,
+        value,
+        source,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn mark_auto_primary_for_dimension(
+    pool: &sqlx::SqlitePool,
+    sample_id: i64,
+    dimension_id: i64,
+) -> Result<(), CommandError> {
+    sqlx::query!(
+        "UPDATE tags SET is_primary = 0 WHERE sample_id = ? AND dimension_id = ? AND source != 'user'",
+        sample_id,
+        dimension_id,
+    )
+    .execute(pool)
+    .await?;
+
+    let has_user_primary = sqlx::query!(
+        "SELECT 1 as \"exists!: i64\"
+         FROM tags
+         WHERE sample_id = ?
+           AND dimension_id = ?
+           AND source = 'user'
+           AND is_primary = 1
+         LIMIT 1",
+        sample_id,
+        dimension_id,
+    )
+    .fetch_optional(pool)
+    .await?;
+    if has_user_primary.is_some() {
+        return Ok(());
+    }
+
+    let candidate = sqlx::query!(
+        "SELECT id as \"id!: i64\"
+         FROM tags
+         WHERE sample_id = ?
+           AND dimension_id = ?
+           AND source != 'user'
+         ORDER BY confidence DESC, id ASC
+         LIMIT 1",
+        sample_id,
+        dimension_id,
+    )
+    .fetch_optional(pool)
+    .await?;
+    if let Some(candidate) = candidate {
+        sqlx::query!("UPDATE tags SET is_primary = 1 WHERE id = ?", candidate.id)
+            .execute(pool)
+            .await?;
+    }
     Ok(())
 }
 

@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT d.name as dimension,\n                COALESCE(dv.value, CAST(t.numeric_value AS TEXT), t.text_value) as \"value: String\",\n                t.source as \"source: TagSource\",\n                t.confidence,\n                t.is_primary as \"is_primary: bool\"\n         FROM tags t\n         JOIN dimensions d ON d.id = t.dimension_id\n         LEFT JOIN dimension_values dv ON dv.id = t.value_id\n         WHERE t.sample_id = ?\n           AND t.source != ?\n           AND NOT EXISTS (\n             SELECT 1\n             FROM tags user_tag\n             WHERE user_tag.sample_id = t.sample_id\n               AND user_tag.dimension_id = t.dimension_id\n               AND user_tag.source = ?\n           )\n           AND d.value_type != 'multi_enum'\n           AND t.dimension_id IN (\n             SELECT conflict_tag.dimension_id\n             FROM tags conflict_tag\n             JOIN dimensions conflict_dimension ON conflict_dimension.id = conflict_tag.dimension_id\n             WHERE conflict_tag.sample_id = ?\n               AND conflict_tag.source != ?\n               AND conflict_dimension.value_type != 'multi_enum'\n             GROUP BY conflict_tag.dimension_id\n             HAVING COUNT(DISTINCT COALESCE(CAST(value_id AS TEXT), CAST(numeric_value AS TEXT), text_value)) > 1\n           )\n         ORDER BY d.sort_order, value",
+  "describe": {
+    "columns": [
+      {
+        "name": "dimension",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "value: String",
+        "ordinal": 1,
+        "type_info": "Null"
+      },
+      {
+        "name": "source: TagSource",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "confidence",
+        "ordinal": 3,
+        "type_info": "Float"
+      },
+      {
+        "name": "is_primary: bool",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "0f488cc97b55250617b6f715db877decb454f39c36181c3ff713e2eb50f4d146"
+}

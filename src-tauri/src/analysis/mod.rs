@@ -279,6 +279,7 @@ async fn persist_analysis_response(
     for tag in &response.tags {
         insert_tag_candidate(pool, sample_id, tag).await?;
     }
+    mark_auto_primary_tags(pool, sample_id).await?;
 
     Ok(())
 }
@@ -324,8 +325,8 @@ async fn insert_tag_candidate(
             if let Some(value) = value {
                 sqlx::query!(
                     "INSERT OR IGNORE INTO tags
-                     (sample_id, dimension_id, value_id, source, confidence, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?)",
+                     (sample_id, dimension_id, value_id, source, confidence, created_at, is_primary)
+                     VALUES (?, ?, ?, ?, ?, ?, 0)",
                     sample_id,
                     dimension.id,
                     value.id,
@@ -341,8 +342,8 @@ async fn insert_tag_candidate(
             if let Ok(numeric_value) = tag.value.parse::<f64>() {
                 sqlx::query!(
                     "INSERT INTO tags
-                     (sample_id, dimension_id, numeric_value, source, confidence, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?)",
+                     (sample_id, dimension_id, numeric_value, source, confidence, created_at, is_primary)
+                     VALUES (?, ?, ?, ?, ?, ?, 0)",
                     sample_id,
                     dimension.id,
                     numeric_value,
@@ -357,8 +358,8 @@ async fn insert_tag_candidate(
         DimensionValueType::Text => {
             sqlx::query!(
                 "INSERT INTO tags
-                 (sample_id, dimension_id, text_value, source, confidence, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?)",
+                 (sample_id, dimension_id, text_value, source, confidence, created_at, is_primary)
+                 VALUES (?, ?, ?, ?, ?, ?, 0)",
                 sample_id,
                 dimension.id,
                 tag.value,
@@ -371,6 +372,77 @@ async fn insert_tag_candidate(
         }
     }
 
+    Ok(())
+}
+
+async fn mark_auto_primary_tags(pool: &SqlitePool, sample_id: i64) -> Result<(), CommandError> {
+    let user_source = TagSource::User;
+    let rows = sqlx::query!(
+        "SELECT DISTINCT dimension_id as \"dimension_id!: i64\"
+         FROM tags
+         WHERE sample_id = ?
+           AND source != ?",
+        sample_id,
+        user_source,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for row in rows {
+        mark_auto_primary_for_dimension(pool, sample_id, row.dimension_id).await?;
+    }
+
+    Ok(())
+}
+
+async fn mark_auto_primary_for_dimension(
+    pool: &SqlitePool,
+    sample_id: i64,
+    dimension_id: i64,
+) -> Result<(), CommandError> {
+    sqlx::query!(
+        "UPDATE tags SET is_primary = 0 WHERE sample_id = ? AND dimension_id = ? AND source != 'user'",
+        sample_id,
+        dimension_id,
+    )
+    .execute(pool)
+    .await?;
+
+    let has_user_primary = sqlx::query!(
+        "SELECT 1 as \"exists!: i64\"
+         FROM tags
+         WHERE sample_id = ?
+           AND dimension_id = ?
+           AND source = 'user'
+           AND is_primary = 1
+         LIMIT 1",
+        sample_id,
+        dimension_id,
+    )
+    .fetch_optional(pool)
+    .await?;
+    if has_user_primary.is_some() {
+        return Ok(());
+    }
+
+    let candidate = sqlx::query!(
+        "SELECT id as \"id!: i64\"
+         FROM tags
+         WHERE sample_id = ?
+           AND dimension_id = ?
+           AND source != 'user'
+         ORDER BY confidence DESC, id ASC
+         LIMIT 1",
+        sample_id,
+        dimension_id,
+    )
+    .fetch_optional(pool)
+    .await?;
+    if let Some(candidate) = candidate {
+        sqlx::query!("UPDATE tags SET is_primary = 1 WHERE id = ?", candidate.id)
+            .execute(pool)
+            .await?;
+    }
     Ok(())
 }
 

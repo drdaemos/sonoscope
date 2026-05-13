@@ -162,6 +162,8 @@ When multiple stages produce a tag for the same (dimension, value), they are sto
 
 When the same source produces the same (dimension, value) twice (shouldn't happen but handled), the higher confidence wins.
 
+After all auto-source tags are written, Core marks one primary auto tag per sample/dimension: the highest-confidence candidate wins, with insertion order as the tie-breaker. User selections later set a user primary tag for that dimension without deleting the other auto-source tags.
+
 ---
 
 ## Sidecar integration

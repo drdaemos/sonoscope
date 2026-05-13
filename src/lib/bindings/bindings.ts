@@ -36,6 +36,7 @@ export type SampleRow = {
 	size_bytes: number | null,
 	analysis_status: AnalysisStatus,
 	tags: SampleTag[],
+	conflicts: TagConflict[],
 };
 
 export type SampleTag = {
@@ -43,6 +44,12 @@ export type SampleTag = {
 	value: string,
 	source: TagSource,
 	confidence: number | null,
+	is_primary: boolean,
+};
+
+export type TagConflict = {
+	dimension: string,
+	candidates: SampleTag[],
 };
 
 export type TagSource = "heuristic" | "metadata" | "model" | "user";

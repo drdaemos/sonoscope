@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Check, FunnelX } from "@lucide/svelte";
-  import { Badge, Button, Input } from "$lib/components/ui";
+  import { FunnelX } from "@lucide/svelte";
+  import { Button, Checkbox, Input, ToggleGroup, ToggleGroupItem } from "$lib/components/ui";
   import {
     clearFilters,
     conflictsOnly,
@@ -13,25 +13,13 @@
   import { currentLibrary } from "$lib/stores/library";
 
   const dimensions = ["Type", "Instrument", "Key"];
-
-  function isActive(dimension: string, value: string): boolean {
-    return ($dimensionFilters[dimension] ?? []).includes(value);
-  }
-
-  function toggleConflictsOnly() {
-    conflictsOnly.update((value) => !value);
-  }
-
-  function toggleUnanalysedOnly() {
-    unanalysedOnly.update((value) => !value);
-  }
 </script>
 
 <aside class="flex w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
-  <div class="space-y-3 p-4">
+  <div class="space-y-2 border-b p-3">
     <div class="flex items-center justify-between">
       <h2 class="text-sm font-medium">Filters</h2>
-      <Button variant="ghost" size="icon" aria-label="Clear filters" onclick={clearFilters}>
+      <Button variant="ghost" size="icon-sm" aria-label="Clear filters" onclick={clearFilters}>
         <FunnelX />
       </Button>
     </div>
@@ -44,67 +32,57 @@
     />
   </div>
 
-  <div class="min-h-0 flex-1 space-y-5 overflow-auto p-4">
+  <div class="min-h-0 flex-1 space-y-3 overflow-auto p-3">
     {#each dimensions as dimension}
       {@const options = [...($filterOptions.get(dimension)?.entries() ?? [])].sort()}
       {#if options.length > 0}
         <section>
-          <div class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <div class="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
             {dimension}
           </div>
-          <div class="flex flex-wrap gap-2">
+          <ToggleGroup
+            type="multiple"
+            variant="chip"
+            size="xs"
+            spacing={1}
+            value={$dimensionFilters[dimension] ?? []}
+            onValueChange={(values) => {
+              const current = $dimensionFilters[dimension] ?? [];
+              const added = values.filter((v: string) => !current.includes(v));
+              const removed = current.filter((v: string) => !values.includes(v));
+              for (const v of [...added, ...removed]) toggleFilterValue(dimension, v);
+            }}
+            class="flex-wrap"
+          >
             {#each options as [value, count]}
-              <button type="button" onclick={() => toggleFilterValue(dimension, value)}>
-                <Badge
-                  variant={isActive(dimension, value) ? "default" : "outline"}
-                  class={isActive(dimension, value) ? "border-primary" : ""}
-                >
-                  {value} {count}
-                </Badge>
-              </button>
+              <ToggleGroupItem {value} class="text-xs">
+                {value} {count}
+              </ToggleGroupItem>
             {/each}
-          </div>
+          </ToggleGroup>
         </section>
       {/if}
     {/each}
 
-    <section class="space-y-2">
-      <button
-        type="button"
-        class="flex w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-left text-sm hover:bg-accent"
-        onclick={toggleConflictsOnly}
-        aria-pressed={$conflictsOnly}
+    <section class="space-y-1.5">
+      <label
+        class="flex w-full cursor-pointer items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm hover:bg-accent"
       >
-        <span
-          class={`flex size-4 items-center justify-center rounded border ${
-            $conflictsOnly ? "border-primary bg-primary text-primary-foreground" : "bg-background"
-          }`}
-        >
-          {#if $conflictsOnly}
-            <Check class="size-3" />
-          {/if}
-        </span>
+        <Checkbox
+          checked={$conflictsOnly}
+          onCheckedChange={(v) => conflictsOnly.set(v === true)}
+        />
         Conflicts only
-      </button>
-      <button
-        type="button"
-        class="flex w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-left text-sm hover:bg-accent"
-        onclick={toggleUnanalysedOnly}
-        aria-pressed={$unanalysedOnly}
+      </label>
+      <label
+        class="flex w-full cursor-pointer items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm hover:bg-accent"
       >
-        <span
-          class={`flex size-4 items-center justify-center rounded border ${
-            $unanalysedOnly
-              ? "border-primary bg-primary text-primary-foreground"
-              : "bg-background"
-          }`}
-        >
-          {#if $unanalysedOnly}
-            <Check class="size-3" />
-          {/if}
-        </span>
+        <Checkbox
+          checked={$unanalysedOnly}
+          onCheckedChange={(v) => unanalysedOnly.set(v === true)}
+        />
         Unanalysed only
-      </button>
+      </label>
     </section>
   </div>
 </aside>

@@ -1,8 +1,35 @@
-export { default as Badge } from "./badge.svelte";
-export { default as Button } from "./button.svelte";
-export { default as Card } from "./card.svelte";
-export { default as Input } from "./input.svelte";
-export { default as Separator } from "./separator.svelte";
-export { default as Tabs } from "./tabs.svelte";
-export { default as TabsList } from "./tabs-list.svelte";
-export { default as TabsTrigger } from "./tabs-trigger.svelte";
+export { Badge } from "./badge";
+export { Button } from "./button";
+export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./card";
+export { Checkbox } from "./checkbox";
+export {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./dropdown-menu";
+export { Input } from "./input";
+export { Progress } from "./progress";
+export {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "./select";
+export { Separator } from "./separator";
+export { Slider } from "./slider";
+export {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./table";
+export { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
+export { ToggleGroup, ToggleGroupItem } from "./toggle-group";
+export {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "./tooltip";
