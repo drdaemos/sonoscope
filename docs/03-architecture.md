@@ -42,8 +42,8 @@
 Runs inside the Tauri WebView. Responsible for all visual rendering and user interaction. Has no direct access to the file system or database — all data operations go through the Tauri IPC layer.
 
 **Frontend stack:**
-- **Svelte + Vite** — no SvelteKit; the three workflow tabs are component-level state, not routes
-- **shadcn-svelte** (Bits UI + Tailwind CSS) — base component library: popovers, dropdowns, dialogs, badges, sliders, progress indicators
+- **Svelte + Vite**
+- **shadcn-svelte** — base component library: popovers, dropdowns, dialogs, badges, sliders, progress indicators
 - **TanStack Table** (`@tanstack/svelte-table`) — file list column management, sorting, and row selection logic
 - **TanStack Virtual** (`@tanstack/svelte-virtual`) — row virtualisation for the file list; required for libraries of thousands of files
 

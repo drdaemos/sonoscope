@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO library_meta (id, root_path, created_at) VALUES (1, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "3e92221387310ae8e6c5141e3a7e3bbdcc94abb2a4e091737b663dc7cb0d4ab1"
+}

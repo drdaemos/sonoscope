@@ -1,0 +1,5 @@
+[env]
+# Use pre-generated query metadata so no live database is needed at build time.
+# After a schema change: run `cargo sqlx migrate run --source migrations` and
+# `DATABASE_URL="sqlite:dev.db" cargo sqlx prepare` to refresh this data.
+SQLX_OFFLINE = "true"

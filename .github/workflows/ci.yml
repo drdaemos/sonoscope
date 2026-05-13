@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.13
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check frontend
+        run: npm run check
+
+      - name: Test Rust core
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Check analyzer lint
+        working-directory: analyzer
+        run: uv run ruff check sonoscope_analyzer tests
+
+      - name: Check analyzer formatting
+        working-directory: analyzer
+        run: uv run ruff format --check sonoscope_analyzer tests
+
+      - name: Check analyzer types
+        working-directory: analyzer
+        run: uv run ty check sonoscope_analyzer
+
+      - name: Test analyzer
+        working-directory: analyzer
+        run: uv run pytest -m "not integration"

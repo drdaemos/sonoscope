@@ -1,0 +1,23 @@
+[project]
+name = "sonoscope-analyzer"
+version = "0.1.0"
+description = "Sonoscope audio analysis pipeline"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.13.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-mock>=3.14",
+    "ruff>=0.15.12",
+    "ty>=0.0.35",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

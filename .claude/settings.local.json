@@ -1,10 +1,42 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir -p \"e:\\\\Repos\\\\sonoscope\\\\docs\")"
-    ],
-    "additionalDirectories": [
-      "e:\\Repos\\sonoscope"
+      "Bash(rustup show *)",
+      "Bash(where rustc *)",
+      "Read(//c/Users/drdae/.cargo/bin/**)",
+      "PowerShell(rustc --version)",
+      "PowerShell(cargo --version)",
+      "Bash(ls ~/.claude/projects/ 2>/dev/null | head -20)",
+      "Read(//c/Users/drdae/.claude/projects/**)",
+      "Bash(awk '{print $2}')",
+      "Bash(python3 -)",
+      "Bash(python3)",
+      "PowerShell(uv --version)",
+      "PowerShell(Rename-Item \"e:\\\\Repos\\\\sonoscope\\\\sidecar\" \"e:\\\\Repos\\\\sonoscope\\\\analyzer\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\Repos\\\\sonoscope\\\\analyzer\\\\sonoscope_analyzer\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\Repos\\\\sonoscope\\\\analyzer\\\\tests\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\Repos\\\\sonoscope\\\\src-tauri\\\\migrations\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\Repos\\\\sonoscope\\\\src-tauri\\\\src\\\\db\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\Repos\\\\sonoscope\\\\src-tauri\\\\src\\\\library\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\Repos\\\\sonoscope\\\\src-tauri\\\\src\\\\commands\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\Repos\\\\sonoscope\\\\src-tauri\\\\tests\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\Repos\\\\sonoscope\\\\src\\\\lib\\\\stores\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\Repos\\\\sonoscope\\\\src\\\\lib\\\\components\")",
+      "Bash(cargo sqlx *)",
+      "Bash(cargo search *)",
+      "Bash(cargo install *)",
+      "Bash(DATABASE_URL=\"sqlite:dev.db\" sqlx database create)",
+      "Bash(DATABASE_URL=\"sqlite:dev.db\" sqlx migrate run --source migrations)",
+      "Bash(DATABASE_URL=\"sqlite:dev.db\" cargo sqlx prepare)",
+      "Bash(DATABASE_URL=\"sqlite:dev.db\" cargo doc --no-deps -p tauri-specta)",
+      "Bash(cd e:/Repos/sonoscope/src-tauri && grep -r \"pub fn\" ~/.cargo/registry/src/*/tauri-specta-2.0.0-rc.25/src/*.rs 2>/dev/null | head -40)",
+      "Read(//c/Users/drdae/.cargo/registry/src/**)",
+      "Bash(cargo check *)",
+      "Bash(npm install *)",
+      "Bash(npm ls *)",
+      "Bash(cargo test *)",
+      "Bash(npx shadcn-svelte@latest init --no-deps)",
+      "Bash(xargs grep -l \"FieldAttrs\\\\|field_attr\\\\|\\\\\"as\\\\\"\\\\|#\\\\[specta\")"
     ]
   }
 }

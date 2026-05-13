@@ -1,0 +1,34 @@
+"""IPC protocol models for the Sonoscope analysis pipeline."""
+
+from typing import Literal
+
+from pydantic import BaseModel
+
+
+class FileMeta(BaseModel):
+    format: str | None = None
+    duration_ms: int | None = None
+    sample_rate: int | None = None
+    bit_depth: int | None = None
+    channels: int | None = None
+
+
+class TagCandidate(BaseModel):
+    dimension: str
+    value: str
+    source: Literal["heuristic", "metadata", "model"]
+    confidence: float
+
+
+class AnalyzeRequest(BaseModel):
+    id: str
+    path: str
+    relative_path: str
+
+
+class AnalyzeResponse(BaseModel):
+    id: str
+    status: Literal["ok", "error"] = "ok"
+    tags: list[TagCandidate] = []
+    file_meta: FileMeta | None = None
+    error: str | None = None

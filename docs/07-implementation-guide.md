@@ -54,7 +54,7 @@ The sidecar has the highest test coverage requirement. Tests are split into thre
 Run fast tests with: `pytest -m "not integration"`
 Run all tests with: `pytest`
 
-**Fixture audio files** live in `sidecar/tests/fixtures/` and are committed to the repo. They should be short (< 2s), low bit-rate, and cover: kick, snare, hi-hat, bass, pad, synth, loop, one-shot. A `fixtures/manifest.json` records the expected tags for each file, used by integration tests.
+**Fixture audio files** live in `analyzer/tests/fixtures/` and are committed to the repo. They should be short (< 2s), low bit-rate, and cover: kick, snare, hi-hat, bass, pad, synth, loop, one-shot. A `fixtures/manifest.json` records the expected tags for each file, used by integration tests.
 
 ### Svelte — UI
 | Layer | Approach | Tools |
@@ -92,7 +92,7 @@ sonoscope/
 │   ├── routes/              # Top-level views (Review, Organise, History)
 │   └── app.html
 │
-├── sidecar/                 # Python analysis pipeline
+├── analyzer/                 # Python analysis pipeline
 │   ├── sonoscope_analyzer/
 │   │   ├── __init__.py
 │   │   ├── main.py          # Stdin/stdout IPC loop
@@ -141,7 +141,7 @@ npx shadcn-svelte@latest init
 # sqlx, tauri-specta, serde, serde_json, tokio, uuid, xxhash-rust
 
 # 4. Set up Python sidecar
-cd sidecar
+cd analyzer
 uv init
 uv add pydantic mutagen soundfile librosa essentia-tensorflow panns-inference
 uv add --dev pytest ty pytest-mock ruff
@@ -155,7 +155,7 @@ npm run tauri dev
 
 # Terminal 2 — Python sidecar (development mode, Tauri spawns this automatically
 #               when configured as a sidecar, but can also be run standalone)
-cd sidecar && uv run python -m sonoscope_analyzer --dev
+cd analyzer && uv run python -m sonoscope_analyzer --dev
 ```
 
 In dev mode, the sidecar reads from stdin and writes to stdout as normal. Pass `--dev` to enable verbose logging to stderr (which Tauri captures separately).
@@ -167,10 +167,10 @@ In dev mode, the sidecar reads from stdin and writes to stdout as normal. Pass `
 cargo test
 
 # Python (fast, no model loading)
-cd sidecar && uv run pytest -m "not integration"
+cd analyzer && uv run pytest -m "not integration"
 
 # Python (full, including ML integration tests — slow)
-cd sidecar && uv run pytest
+cd analyzer && uv run pytest
 
 # UI
 npm run test
@@ -183,8 +183,8 @@ npm run test:e2e
 
 ```bash
 # 1. Build the Python sidecar into a self-contained binary
-cd sidecar && uv run pyinstaller sonoscope_analyzer.spec
-# Output: sidecar/dist/sonoscope-analyzer(.exe on Windows)
+cd analyzer && uv run pyinstaller sonoscope_analyzer.spec
+# Output: analyzer/dist/sonoscope-analyzer(.exe on Windows)
 
 # 2. Copy sidecar binary to Tauri's sidecar directory
 # (configured in tauri.conf.json under externalBin)
@@ -195,22 +195,21 @@ npm run tauri build
 
 ### CI (GitHub Actions)
 
-Two jobs, matrix: `[macos-latest, windows-latest]`
+One **Test** job, matrix: `[macos-latest, windows-latest]`
 
-1. **Test**
+The workflow runs:
    - `cargo test`
-   - `cd sidecar && uv run ruff check sonoscope_analyzer`
-   - `cd sidecar && uv run ruff format --check sonoscope_analyzer`
-   - `cd sidecar && uv run ty check sonoscope_analyzer`
-   - `cd sidecar && uv run pytest -m "not integration"`
-   - `npm run test`
-
-2. **Build** (on `main` only)
-   - Full sidecar + Tauri production build
+   - `cd analyzer && uv run ruff check sonoscope_analyzer`
+   - `cd analyzer && uv run ruff format --check sonoscope_analyzer`
+   - `cd analyzer && uv run ty check sonoscope_analyzer`
+   - `cd analyzer && uv run pytest -m "not integration"`
+   - `npm run check`
 
 ---
 
 ## Implementation phases
+
+Implementation status is tracked in [`08-implementation-tracker.md`](08-implementation-tracker.md). Update that tracker in the same change set whenever a feature is implemented, started, deferred, blocked, or materially changed.
 
 ### Phase 0 — Scaffold (setup)
 **Goal:** empty app runs; all tooling works; CI passes.
@@ -234,7 +233,18 @@ Two jobs, matrix: `[macos-latest, windows-latest]`
 - [ ] UI: discovery progress indicator in top bar
 - **Tests**: DB integration (open creates schema), discovery (temp dir tree), scan cancellation
 
-### Phase 2 — Sidecar + Heuristic Analysis
+### Phase 2 — UI Foundation
+**Goal:** the app has a coherent desktop layout and design system foundation before feature-heavy UI work continues.
+
+- [ ] Design tokens: color, spacing, borders, type scale, focus states, and light/dark theme rules
+- [ ] Base app shell: persistent top bar, workflow tabs, left sidebar region, main panel, and footer region
+- [ ] Core UI primitives: buttons, icon buttons, tabs, badges/chips, progress indicators, inputs, empty states, and dialogs/popovers
+- [ ] Review, Organise, and History routes or view states with placeholder content where functionality is not implemented yet
+- [ ] Replace ad hoc Phase 1 controls/table styling with reusable components and layout primitives
+- [ ] Document component usage conventions for future phases
+- **Tests**: `npm run check`; component smoke tests if a test harness is introduced in this phase
+
+### Phase 3 — Sidecar + Heuristic Analysis
 **Goal:** files are analysed by filename heuristics; tags appear in the list.
 
 - [ ] Python: Pydantic protocol models (request, response, tag)
@@ -244,11 +254,11 @@ Two jobs, matrix: `[macos-latest, windows-latest]`
 - [ ] Rust: sidecar process manager (spawn, keep-alive, send/receive)
 - [ ] DB schema: `dimensions`, `dimension_values`, `tags`; seed data; migration 002
 - [ ] Rust: analysis orchestrator — queue pending files, dispatch to sidecar, write results
-- [ ] UI: tag columns in file list (Type + Instrument); chips per row
-- [ ] UI: analysis progress badge on Review tab
+- [ ] UI: tag columns in file list (Type + Instrument); chips per row, using Phase 2 components
+- [ ] UI: analysis progress badge on Review tab/top bar
 - **Tests**: heuristic parametrized suite (50+ cases); metadata fixture files; IPC protocol round-trip; Rust sidecar manager (mock sidecar process)
 
-### Phase 3 — Review UI
+### Phase 4 — Review UI
 **Goal:** user can fully review and edit tags; filtering and search work.
 
 - [ ] UI: filter sidebar with dimension chips + counts
@@ -261,7 +271,7 @@ Two jobs, matrix: `[macos-latest, windows-latest]`
 - [ ] Rust: conflict detection query
 - **Tests**: filter state logic (Vitest); tag editing component (Testing Library); conflict query (DB integration)
 
-### Phase 4 — ML Analysis
+### Phase 5 — ML Analysis
 **Goal:** ML-based Type and Instrument classification runs as part of analysis.
 
 - [ ] Python: `classifier.py` — Essentia loop detector + PANNs CNN14 integration
@@ -272,7 +282,7 @@ Two jobs, matrix: `[macos-latest, windows-latest]`
 - [ ] Verify end-to-end: scan a test library, check DB tags match fixture manifest
 - **Tests**: ML mapping unit tests (mocked model output); integration fixture suite
 
-### Phase 5 — Audio Playback
+### Phase 6 — Audio Playback
 **Goal:** user can play samples in-app with waveform display.
 
 - [ ] UI: playback footer (play/pause, waveform canvas, seek, timestamp, volume)
@@ -282,7 +292,7 @@ Two jobs, matrix: `[macos-latest, windows-latest]`
 - [ ] UI: waveform drawn from `waveform_data` blob retrieved via Tauri command
 - **Tests**: playback store logic (Vitest); waveform rendering component
 
-### Phase 6 — Organise + History
+### Phase 7 — Organise + History
 **Goal:** user can reorganise files and roll back.
 
 - [ ] DB schema: `operation_batches`, `file_operations`; migration 004
@@ -294,7 +304,7 @@ Two jobs, matrix: `[macos-latest, windows-latest]`
 - [ ] UI: History step (batch list, rollback button, confirmation dialog)
 - **Tests**: pattern resolver (unit, edge cases: missing tags, multi-value dimensions, special characters in values); file ops integration (temp dir); rollback correctness
 
-### Phase 7 — Settings + Polish
+### Phase 8 — Settings + Polish
 **Goal:** dimension management, preset management, edge case handling.
 
 - [ ] UI: Settings panel — add/remove custom dimensions and values
@@ -310,7 +320,7 @@ Two jobs, matrix: `[macos-latest, windows-latest]`
 ## Conventions
 
 ### Git
-- Branch per phase: `phase/01-library-discovery`, `phase/02-sidecar-heuristics`, etc.
+- Branch per phase: `phase/01-library-discovery`, `phase/02-ui-foundation`, `phase/03-sidecar-heuristics`, etc.
 - Commits are small and buildable. No "WIP" commits on main.
 - PR per phase; CI must pass before merge.
 
@@ -321,4 +331,4 @@ Two jobs, matrix: `[macos-latest, windows-latest]`
 
 ### Generated files
 - `src/lib/bindings/` is auto-generated by `tauri-specta`; do not hand-edit.
-- `sidecar/mappings/` JSON files are hand-maintained configuration, not generated.
+- `analyzer/mappings/` JSON files are hand-maintained configuration, not generated.

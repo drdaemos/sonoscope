@@ -1,4 +1,4 @@
-# Sonoscope — Claude Context
+# Sonoscope — Codex Context
 
 ## Project
 

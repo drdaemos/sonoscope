@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE library_meta SET last_discovered_at = ? WHERE id = 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "76d4f5c399880d18e2826b7037bc4c083fe269828d0fc452812dad8a992f4c92"
+}

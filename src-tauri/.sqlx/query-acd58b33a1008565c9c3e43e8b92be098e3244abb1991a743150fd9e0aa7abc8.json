@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, filename, relative_path, format, size_bytes, analysis_status as \"analysis_status: AnalysisStatus\"\n         FROM samples ORDER BY relative_path",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "filename",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "relative_path",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "format",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "size_bytes",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "analysis_status: AnalysisStatus",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "acd58b33a1008565c9c3e43e8b92be098e3244abb1991a743150fd9e0aa7abc8"
+}
