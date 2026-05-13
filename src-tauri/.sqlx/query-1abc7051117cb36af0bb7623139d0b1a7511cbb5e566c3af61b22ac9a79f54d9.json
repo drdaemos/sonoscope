@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO tags\n                     (sample_id, dimension_id, value_id, source, confidence, created_at)\n                     VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "1abc7051117cb36af0bb7623139d0b1a7511cbb5e566c3af61b22ac9a79f54d9"
+}

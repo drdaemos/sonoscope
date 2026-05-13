@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class FileMeta(BaseModel):
@@ -29,6 +29,6 @@ class AnalyzeRequest(BaseModel):
 class AnalyzeResponse(BaseModel):
     id: str
     status: Literal["ok", "error"] = "ok"
-    tags: list[TagCandidate] = []
+    tags: list[TagCandidate] = Field(default_factory=list)
     file_meta: FileMeta | None = None
     error: str | None = None

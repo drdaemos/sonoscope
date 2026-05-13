@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM tags WHERE sample_id = ? AND dimension_id = ? AND source = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "c1d2ec95680a0d7c1c0b3c17b6dc771aad674a1d9e95086f43315052bf26e169"
+}

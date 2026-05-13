@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT d.name as dimension,\n                COALESCE(dv.value, CAST(t.numeric_value AS TEXT), t.text_value) as \"value: String\",\n                t.source as \"source: TagSource\",\n                t.confidence\n         FROM tags t\n         JOIN dimensions d ON d.id = t.dimension_id\n         LEFT JOIN dimension_values dv ON dv.id = t.value_id\n         WHERE t.sample_id = ?\n         ORDER BY d.sort_order, value",
+  "describe": {
+    "columns": [
+      {
+        "name": "dimension",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "value: String",
+        "ordinal": 1,
+        "type_info": "Null"
+      },
+      {
+        "name": "source: TagSource",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "confidence",
+        "ordinal": 3,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      true
+    ]
+  },
+  "hash": "b3a6023fe58bb71d50f39baaa27938ead9c28a694acfe7c7b7bac2f690248184"
+}

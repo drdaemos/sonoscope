@@ -5,7 +5,9 @@ description = "Sonoscope audio analysis pipeline"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "mutagen>=1.47.0",
     "pydantic>=2.13.4",
+    "soundfile>=0.13.1",
 ]
 
 [dependency-groups]

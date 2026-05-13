@@ -155,7 +155,7 @@ npm run tauri dev
 
 # Terminal 2 — Python sidecar (development mode, Tauri spawns this automatically
 #               when configured as a sidecar, but can also be run standalone)
-cd analyzer && uv run python -m sonoscope_analyzer --dev
+cd analyzer && uv run python -m sonoscope_analyzer.main --dev
 ```
 
 In dev mode, the sidecar reads from stdin and writes to stdout as normal. Pass `--dev` to enable verbose logging to stderr (which Tauri captures separately).

@@ -45,8 +45,8 @@ Goal: user can open a folder, discover audio files, and see them in a basic list
 | Cancellable discovery | Implemented | `cancel_discovery`; `test_discover_cancellation_rolls_back_transaction`. |
 | Discovery progress events | Implemented | Emits `discovery-progress`, `discovery-complete`, and `discovery-cancelled`. |
 | Generated command bindings | Implemented | `openLibrary`, `startDiscovery`, `cancelDiscovery`, `getSamples`. |
-| Library selector UI | In progress | `LibraryBar.svelte` now uses shared UI primitives inside the Phase 2 app shell. |
-| Basic file list UI | In progress | `FileList.svelte` shows filename, path, format, size, and status using shared UI primitives. |
+| Library selector UI | In progress | Header selector opens libraries, shows the selected library name, and stores five recent libraries in localStorage. |
+| Basic file list UI | In progress | `FileList.svelte` shows filename, path, tags, conflict state, format, and size using shared UI primitives. |
 
 ## Phase 2 — UI Foundation
 
@@ -59,7 +59,7 @@ Goal: introduce the app shell and design system foundation before feature-heavy 
 | Core UI primitives | In progress | Button, badge, card, input, separator, and tabs primitives exist under `src/lib/components/ui/`. |
 | Workflow view states | Implemented | Review, Organise, and History view states exist with placeholders for unavailable workflows. |
 | Phase 1 UI cleanup | In progress | Library controls and file list now use shared primitives; table remains intentionally basic. |
-| Component usage conventions | Not started | Needs a short docs section once primitive set stabilizes. |
+| Component usage conventions | In progress | Phase 2 primitives exist; broader usage docs still needed once the set stabilizes. |
 | UI verification | Implemented | `npm run check` and `npm run build` pass. |
 
 ## Phase 3 — Sidecar + Heuristic Analysis
@@ -69,16 +69,16 @@ Goal: files are analyzed by filename heuristics; tags appear in the list.
 | Feature | Status | Notes / Verification |
 |---|---|---|
 | Pydantic IPC protocol models | Implemented | `analyzer/tests/test_protocol.py`; `uv run pytest`. |
-| Analyzer stdin/stdout loop | In progress | Basic loop exists; `process_request` currently returns no tags. |
-| Heuristic token config | Not started | Planned `analyzer/sonoscope_analyzer/mappings/heuristic_tokens.json`. |
-| Filename/path heuristics | Not started | Requires parametrized unit coverage. |
-| Metadata extraction | Not started | Requires fixture-based tests; no model loading. |
-| Rust sidecar process manager | Not started | Should use a mock sidecar process in tests. |
-| Tags schema migration | Not started | Planned `002_tags.sql` for dimensions, values, and tags. |
-| Seed system dimensions/values | Not started | Type and Instrument are minimum required for Phase 3 analysis UI. |
-| Analysis orchestrator | Not started | Queue pending samples, dispatch to analyzer, persist results. |
-| Tag columns in file list | Not started | Type + Instrument chips per row using Phase 2 components. |
-| Analysis progress badge | Not started | Review tab/top-bar progress indicator. |
+| Analyzer stdin/stdout loop | Implemented | Emits ready line and processes newline-delimited requests in `sonoscope_analyzer.main`. |
+| Heuristic token config | Implemented | `analyzer/sonoscope_analyzer/mappings/heuristic_tokens.json`. |
+| Filename/path heuristics | Implemented | 50+ parametrized cases in `analyzer/tests/test_heuristics.py`. |
+| Metadata extraction | Implemented | Mutagen + SoundFile coverage in `analyzer/tests/test_metadata.py`. |
+| Rust sidecar process manager | In progress | Long-lived uv-managed analyzer client exists; ignored Rust integration test passes when explicitly run with process-spawn access. |
+| Tags schema migration | Implemented | `src-tauri/migrations/002_tags.sql`. |
+| Seed system dimensions/values | Implemented | Covered by `test_open_seeds_system_tag_dimensions`; includes the expanded heuristic Type/Instrument vocabulary. |
+| Analysis orchestrator | Implemented | Queues pending samples, supports full-library reanalysis after re-scan, dispatches to analyzer, persists auto-tags, and updates status. |
+| Tag columns in file list | Implemented | Type + Instrument chips are shown in `FileList.svelte`. |
+| Analysis progress badge | Implemented | Header uses one scan/analyze pipeline action with progress state; completed libraries show `Re-scan` and requeue samples for analysis. |
 
 ## Phase 4 — Review UI
 
@@ -86,14 +86,14 @@ Goal: user can review and edit tags; filtering and search work.
 
 | Feature | Status | Notes / Verification |
 |---|---|---|
-| Filter sidebar | Not started | Dimension chips with counts. |
-| Filename search | Not started | Real-time filename substring filter. |
-| Sortable columns | Not started | Include tag dimension columns. |
-| Inline tag editing | Not started | Single-row editor, user-source tags. |
-| Bulk tag editor | Not started | Selection action bar. |
-| Conflict indicator and panel | Not started | Query-time conflict detection. |
-| `tags::set_user_tag` command | Not started | Must use typed Rust command and generated binding. |
-| `tags::clear_user_tag` command | Not started | Must preserve auto-tags. |
+| Filter sidebar | Implemented | Dimension chips with counts for Type, Instrument, and Key in `FilterSidebar.svelte`; verified by `npm run check` and `npm run build`. |
+| Filename search | Implemented | Real-time filename substring filter in `src/lib/stores/review.ts`; verified by `npm run check` and `npm run build`. |
+| Sortable columns | Implemented | Filename, path, Type, and Instrument sorting in `FileList.svelte`; verified by `npm run check` and `npm run build`. |
+| Inline tag editing | In progress | Type and Instrument user-tag editing is wired; broader dimension support and stronger UX states remain. |
+| Bulk tag editor | In progress | Multi-select action bar supports Type/Instrument set and clear; broader dimension support remains. |
+| Conflict indicator and panel | In progress | Client-side auto-tag conflict indicator exists; query-time conflict detection and detail panel remain. |
+| `tags::set_user_tag` command | Implemented | Typed `set_user_tag` command and generated `commands.setUserTag`; covered by `test_user_tag_write_and_clear_preserves_auto_tags`. |
+| `tags::clear_user_tag` command | Implemented | Typed `clear_user_tag` command and generated `commands.clearUserTag`; covered by `test_user_tag_write_and_clear_preserves_auto_tags`. |
 | Conflict query tests | Not started | DB integration coverage required. |
 
 ## Phase 5 — ML Analysis

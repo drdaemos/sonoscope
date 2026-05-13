@@ -1,0 +1,129 @@
+{
+  "type": [
+    { "value": "loop", "tokens": ["loop", "loops", "lp"], "confidence": 0.95 },
+    {
+      "value": "one-shot",
+      "tokens": ["oneshot", "one_shot", "one-shot", "1shot", "shot"],
+      "confidence": 0.95
+    },
+    {
+      "value": "fill",
+      "tokens": ["fill", "fills", "drum fill", "drum_fill"],
+      "confidence": 0.9
+    },
+    {
+      "value": "break",
+      "tokens": ["break", "breaks", "drum break", "drum_break"],
+      "confidence": 0.9
+    },
+    {
+      "value": "top-loop",
+      "tokens": ["top_loop", "top loop", "drum_top", "drum top", "tops"],
+      "confidence": 0.85
+    },
+    {
+      "value": "texture",
+      "tokens": ["texture", "textures", "drone"],
+      "confidence": 0.8
+    }
+  ],
+  "instrument": [
+    { "value": "kick", "tokens": ["kick", "kicks", "kik", "bd", "bass drum", "bass_drum"], "confidence": 0.9 },
+    { "value": "snare", "tokens": ["snare", "snares", "snr", "sd"], "confidence": 0.9 },
+    { "value": "hi-hat", "tokens": ["hat", "hats", "hh", "hihat", "hi hat", "hi-hat"], "confidence": 0.9 },
+    {
+      "value": "clap",
+      "tokens": ["clap", "claps", "handclap", "handclaps", "clapper", "snap", "snaps", "stomp", "stomps"],
+      "confidence": 0.9
+    },
+    {
+      "value": "cymbal",
+      "tokens": ["cymbal", "cymbals", "crash", "ride"],
+      "confidence": 0.85
+    },
+    {
+      "value": "percussion",
+      "tokens": [
+        "perc", "percussion",
+        "conga", "congas", "bongo", "bongos", "tumba",
+        "tom", "toms", "rototom", "roto_tom",
+        "rim", "rimshot", "xstick",
+        "shaker", "tambourine", "tamb", "tambo",
+        "cowbell", "cabassa", "woodblock", "triangle",
+        "clave", "djembe", "timbal", "agogo", "cajon"
+      ],
+      "confidence": 0.85
+    },
+    {
+      "value": "bass",
+      "tokens": [
+        "bass", "sub", "808",
+        "electric bass", "electric_bass",
+        "bass guitar", "bass_guitar",
+        "upright bass", "upright_bass",
+        "double bass"
+      ],
+      "confidence": 0.85
+    },
+    {
+      "value": "guitar",
+      "tokens": ["guitar", "guitars", "electric guitar", "electric_guitar", "acoustic guitar", "acoustic_guitar"],
+      "confidence": 0.9
+    },
+    {
+      "value": "piano",
+      "tokens": [
+        "piano", "electric piano", "electric_piano",
+        "organ", "hammond", "mellotron",
+        "clavinet", "wurlitzer",
+        "vibraphone", "celeste", "marimba"
+      ],
+      "confidence": 0.85
+    },
+    {
+      "value": "brass",
+      "tokens": ["brass", "trumpet", "trombone", "horn", "horns", "brass section", "brass_section", "flugelhorn"],
+      "confidence": 0.9
+    },
+    {
+      "value": "woodwind",
+      "tokens": ["saxophone", "sax", "flute", "clarinet", "oboe"],
+      "confidence": 0.9
+    },
+    {
+      "value": "strings",
+      "tokens": ["strings", "violin", "viola", "cello", "string"],
+      "confidence": 0.85
+    },
+    { "value": "chord", "tokens": ["chord", "chords", "stab", "stabs"], "confidence": 0.85 },
+    { "value": "pad", "tokens": ["pad", "pads", "atmo", "ambient"], "confidence": 0.85 },
+    { "value": "synth", "tokens": ["synth", "synths", "arp", "arps", "pluck"], "confidence": 0.85 },
+    { "value": "lead", "tokens": ["lead", "leads", "melody", "melodic"], "confidence": 0.85 },
+    {
+      "value": "vocal",
+      "tokens": [
+        "vocal", "vocals", "vox", "voice",
+        "choir", "adlib", "talkbox",
+        "vocal chops", "vocal_chops",
+        "vocalization", "vocalizations"
+      ],
+      "confidence": 0.85
+    },
+    {
+      "value": "fx",
+      "tokens": [
+        "fx", "sfx",
+        "riser", "uplifter",
+        "impact", "downlifter", "downlift",
+        "atmosphere", "atmos",
+        "sweep", "transition"
+      ],
+      "confidence": 0.85
+    },
+    {
+      "value": "foley",
+      "tokens": ["foley", "field", "noise", "field recording", "field_recording"],
+      "confidence": 0.8
+    }
+  ]
+}

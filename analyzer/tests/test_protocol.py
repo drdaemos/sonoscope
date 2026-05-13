@@ -1,5 +1,7 @@
 """Unit tests for the IPC protocol models."""
 
+from typing import Literal
+
 import pytest
 from pydantic import ValidationError
 
@@ -85,18 +87,20 @@ def test_response_defaults_to_ok() -> None:
     "source",
     ["heuristic", "metadata", "model"],
 )
-def test_tag_candidate_valid_sources(source: str) -> None:
-    tag = TagCandidate(dimension="Instrument", value="kick", source=source, confidence=0.9)  # type: ignore[arg-type]
+def test_tag_candidate_valid_sources(source: Literal["heuristic", "metadata", "model"]) -> None:
+    tag = TagCandidate(dimension="Instrument", value="kick", source=source, confidence=0.9)
     assert tag.source == source
 
 
 def test_tag_candidate_rejects_unknown_source() -> None:
     with pytest.raises(ValidationError):
-        TagCandidate(
-            dimension="Type",
-            value="loop",
-            source="unknown",  # type: ignore[arg-type]
-            confidence=0.9,
+        TagCandidate.model_validate(
+            {
+                "dimension": "Type",
+                "value": "loop",
+                "source": "unknown",
+                "confidence": 0.9,
+            }
         )
 
 

@@ -3,8 +3,8 @@
   import FileList from "$lib/components/FileList.svelte";
   import FilterSidebar from "$lib/components/FilterSidebar.svelte";
   import LibraryBar, { type AppView } from "$lib/components/LibraryBar.svelte";
-  import { Button, Card, Separator } from "$lib/components/ui";
-  import { currentLibrary } from "$lib/stores/library";
+  import { Badge, Button, Card, Separator } from "$lib/components/ui";
+  import { currentLibrary, samples } from "$lib/stores/library";
 
   let activeView: AppView = "review";
 </script>
@@ -21,8 +21,10 @@
           <div class="flex items-center gap-2">
             <ListMusic class="size-4 text-muted-foreground" />
             <h1 class="text-sm font-medium">Review</h1>
+            <Badge variant="muted">
+              {$currentLibrary ? `${$samples.length} files` : "No library"}
+            </Badge>
           </div>
-          <Button variant="outline" size="sm" disabled={!$currentLibrary}>Edit tags</Button>
         </div>
         <FileList />
       {:else if activeView === "organise"}

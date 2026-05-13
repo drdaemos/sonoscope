@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO tags\n                 (sample_id, dimension_id, value_id, source, confidence, created_at)\n                 VALUES (?, ?, ?, ?, NULL, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "a937274060a377ef498e604422c189fb98386961bf3280a537d18f6b96649875"
+}

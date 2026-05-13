@@ -9,15 +9,18 @@ export const commands = {
 	openLibrary: (path: string) => typedError<LibraryMeta, CommandError>(__TAURI_INVOKE("open_library", { path })),
 	startDiscovery: () => typedError<null, CommandError>(__TAURI_INVOKE("start_discovery")),
 	cancelDiscovery: () => typedError<null, CommandError>(__TAURI_INVOKE("cancel_discovery")),
+	startAnalysis: (reanalyze: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("start_analysis", { reanalyze })),
 	getSamples: () => typedError<SampleRow[], CommandError>(__TAURI_INVOKE("get_samples")),
+	setUserTag: (sampleId: number, dimension: string, value: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_user_tag", { sampleId, dimension, value })),
+	clearUserTag: (sampleId: number, dimension: string) => typedError<null, CommandError>(__TAURI_INVOKE("clear_user_tag", { sampleId, dimension })),
 };
 
 /* Types */
 export type AnalysisStatus = "pending" | "analysing" | "done" | "failed";
 
-export type CommandError = ({ Database: string }) & { DiscoveryCancelled?: never; Io?: never; Other?: never } | ({ Io: string }) & { Database?: never; DiscoveryCancelled?: never; Other?: never } | "NoLibraryOpen" | ({ DiscoveryCancelled: {
+export type CommandError = ({ Database: string }) & { Analysis?: never; DiscoveryCancelled?: never; Io?: never; Other?: never } | ({ Io: string }) & { Analysis?: never; Database?: never; DiscoveryCancelled?: never; Other?: never } | "NoLibraryOpen" | ({ Analysis: string }) & { Database?: never; DiscoveryCancelled?: never; Io?: never; Other?: never } | ({ DiscoveryCancelled: {
 	count: number,
-} }) & { Database?: never; Io?: never; Other?: never } | ({ Other: string }) & { Database?: never; DiscoveryCancelled?: never; Io?: never };
+} }) & { Analysis?: never; Database?: never; Io?: never; Other?: never } | ({ Other: string }) & { Analysis?: never; Database?: never; DiscoveryCancelled?: never; Io?: never };
 
 export type LibraryMeta = {
 	root_path: string,
@@ -32,7 +35,17 @@ export type SampleRow = {
 	format: string | null,
 	size_bytes: number | null,
 	analysis_status: AnalysisStatus,
+	tags: SampleTag[],
 };
+
+export type SampleTag = {
+	dimension: string,
+	value: string,
+	source: TagSource,
+	confidence: number | null,
+};
+
+export type TagSource = "heuristic" | "metadata" | "model" | "user";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

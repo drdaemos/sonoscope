@@ -57,6 +57,8 @@ The gap is decisive at Stage 3. Rust has no production-ready pre-trained models 
 
 **Library:** `mutagen` (tag reading) + `soundfile` / `audioread` (format info)
 
+**Current implementation decision:** Phase 3 uses `mutagen` for embedded tags and `soundfile` for technical audio properties. Sonoscope source remains MIT; bundled distributions must preserve dependency license notices, including Mutagen's GPL-2.0-or-later license. ML/DSP libraries listed later in this document are provisional and require a separate packaging/platform evaluation before adoption.
+
 Extracts:
 - Format, sample rate, bit depth, channels, duration
 - Embedded text tags: title, comment, genre, BPM, key (if present)

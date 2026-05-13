@@ -12,6 +12,26 @@ pub enum AnalysisStatus {
     Failed,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type, sqlx::Type)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "TEXT", rename_all = "snake_case")]
+pub enum DimensionValueType {
+    Enum,
+    MultiEnum,
+    Numeric,
+    Text,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type, sqlx::Type)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "TEXT", rename_all = "snake_case")]
+pub enum TagSource {
+    Heuristic,
+    Metadata,
+    Model,
+    User,
+}
+
 #[derive(Debug, thiserror::Error, Serialize, Type)]
 pub enum CommandError {
     #[error("Database error: {0}")]
@@ -20,6 +40,8 @@ pub enum CommandError {
     Io(String),
     #[error("No library is open")]
     NoLibraryOpen,
+    #[error("Analysis error: {0}")]
+    Analysis(String),
     #[error("Discovery cancelled after {count} files")]
     DiscoveryCancelled {
         #[specta(type = Number<u32>)]

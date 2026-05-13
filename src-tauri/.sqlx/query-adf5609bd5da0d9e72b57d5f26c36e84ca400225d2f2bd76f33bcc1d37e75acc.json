@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE samples\n             SET format = COALESCE(?, format),\n                 duration_ms = COALESCE(?, duration_ms),\n                 sample_rate = COALESCE(?, sample_rate),\n                 bit_depth = COALESCE(?, bit_depth),\n                 channels = COALESCE(?, channels)\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "adf5609bd5da0d9e72b57d5f26c36e84ca400225d2f2bd76f33bcc1d37e75acc"
+}

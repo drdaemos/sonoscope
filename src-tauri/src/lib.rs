@@ -1,4 +1,5 @@
-mod commands;
+pub mod analysis;
+pub mod commands;
 pub mod db;
 pub mod error;
 pub mod library;
@@ -16,7 +17,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::open_library,
         commands::start_discovery,
         commands::cancel_discovery,
+        commands::start_analysis,
         commands::get_samples,
+        commands::set_user_tag,
+        commands::clear_user_tag,
     ])
 }
 

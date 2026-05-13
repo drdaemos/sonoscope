@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE samples SET analysis_status = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "bd0858e1a5cecca3ff851c4ab588990b45e1b0a7f93c5db89a49c4813ffedcc6"
+}

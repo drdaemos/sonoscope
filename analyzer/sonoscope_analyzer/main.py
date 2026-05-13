@@ -3,18 +3,27 @@
 import json
 import sys
 
+from sonoscope_analyzer.heuristics import analyze_path
+from sonoscope_analyzer.metadata import extract_metadata
 from sonoscope_analyzer.protocol import AnalyzeRequest, AnalyzeResponse
 
 
 def process_request(request: AnalyzeRequest) -> AnalyzeResponse:
-    return AnalyzeResponse(id=request.id, status="ok")
+    file_meta, metadata_tags = extract_metadata(request.path)
+    tags = [*metadata_tags, *analyze_path(request.relative_path)]
+    return AnalyzeResponse(id=request.id, status="ok", tags=tags, file_meta=file_meta)
 
 
 def main() -> None:
+    sys.stdout.write(json.dumps({"ready": True}) + "\n")
+    sys.stdout.flush()
+
     for line in sys.stdin:
         line = line.strip()
         if not line:
             continue
+        if line == '{"shutdown": true}':
+            break
         raw: dict[str, object] = {}
         try:
             raw = json.loads(line)
