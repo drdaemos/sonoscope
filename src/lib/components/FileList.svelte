@@ -1,32 +1,30 @@
 <script lang="ts">
   import { Select as SelectPrimitive } from "bits-ui";
-  import { createVirtualizer } from "@tanstack/svelte-virtual";
-  import { untrack } from "svelte";
-  import { get } from "svelte/store";
   import { AlertTriangle, FileAudio, Pencil, X } from "@lucide/svelte";
   import { commands } from "$lib/bindings/bindings";
+  import ConflictResolver from "$lib/components/ConflictResolver.svelte";
+  import TagValueEditor from "$lib/components/TagValueEditor.svelte";
   import {
     Badge,
     Button,
     Checkbox,
+    Input,
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
   } from "$lib/components/ui";
-  import { currentLibrary, samples, type SampleRow } from "$lib/stores/library";
+  import { currentLibrary, samples, tagDimensions, type SampleRow, type TagDimension } from "$lib/stores/library";
+  import { loadPlaybackSample } from "$lib/stores/playback";
   import {
     clearSelection,
+    dimensionSortKey,
     displayTags,
     displayTagValues,
     hasConflict,
+    reviewViewportKey,
     selectedSampleIds,
+    setSelectionState,
     setSort,
     sortDirection,
     sortKey,
@@ -37,70 +35,175 @@
 
   const ROW_HEIGHT = 44;
   const INTERACTIVE_ROW_SELECTOR = "button, a, input, [role='button'], [data-row-action]";
+  const REVIEW_COLUMN_DIMENSIONS = ["Type", "Instrument", "Key"];
+  const VIRTUAL_OVERSCAN = 12;
+  type DragSelectionMode = "select" | "deselect";
+  type PendingDragSelection = {
+    sampleId: number;
+    mode: DragSelectionMode;
+    clientX: number;
+    clientY: number;
+  };
 
-  const typeOptions = ["loop", "one-shot", "fill", "break", "top-loop", "texture"];
-  const instrumentOptions = [
-    "kick",
-    "snare",
-    "hi-hat",
-    "clap",
-    "cymbal",
-    "percussion",
-    "bass",
-    "guitar",
-    "piano",
-    "brass",
-    "woodwind",
-    "strings",
-    "chord",
-    "pad",
-    "synth",
-    "lead",
-    "vocal",
-    "fx",
-    "foley",
+  type VirtualRow = {
+    sample: SampleRow;
+    index: number;
+    key: number;
+    start: number;
+  };
+
+  const fallbackTagDimensions: TagDimension[] = [
+    {
+      name: "Type",
+      value_type: "enum",
+      values: ["break", "fill", "loop", "one-shot", "texture", "top-loop"],
+    },
+    {
+      name: "Instrument",
+      value_type: "multi_enum",
+      values: [
+        "bass",
+        "brass",
+        "chord",
+        "clap",
+        "cymbal",
+        "foley",
+        "fx",
+        "guitar",
+        "hi-hat",
+        "kick",
+        "lead",
+        "pad",
+        "percussion",
+        "piano",
+        "snare",
+        "strings",
+        "synth",
+        "vocal",
+        "woodwind",
+      ],
+    },
+    {
+      name: "Key",
+      value_type: "enum",
+      values: ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"],
+    },
+    { name: "Tempo", value_type: "numeric", values: [] },
   ];
 
-  let editing = $state<{ sampleId: number; dimension: "Type" | "Instrument"; value: string } | null>(null);
-  let bulkDimension = $state<"Type" | "Instrument">("Type");
+  let editing = $state<{ sampleId: number; dimension: string; value: string } | null>(null);
+  let bulkDimension = $state("Type");
   let bulkValue = $state("loop");
   let expandedConflictSampleId = $state<number | null>(null);
   let scrollContainerRef = $state<HTMLDivElement | null>(null);
+  let scrollTop = $state(0);
+  let viewportHeight = $state(0);
+  let dragSelectionMode = $state<DragSelectionMode | null>(null);
+  let pendingDragSelection = $state<PendingDragSelection | null>(null);
+  let suppressNextRowClick = $state(false);
   let selectedCount = $derived($selectedSampleIds.size);
-
-  const virtualizer = createVirtualizer({
-    count: 0,
-    getScrollElement: () => scrollContainerRef,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 20,
-  });
+  let effectiveTagDimensions = $derived(
+    $tagDimensions.length > 0 ? $tagDimensions : fallbackTagDimensions,
+  );
+  let editableTagDimensions = $derived(effectiveTagDimensions.filter(isEditableDimension));
+  let columnTagDimensions = $derived(
+    REVIEW_COLUMN_DIMENSIONS.map((name) => dimensionByName(name)).filter(isPresent),
+  );
+  let bulkTagDimension = $derived(dimensionByName(bulkDimension));
+  let expandedConflictSample = $derived(
+    $visibleSamples.find((sample) => sample.id === expandedConflictSampleId) ?? null,
+  );
+  let gridTemplateColumns = $derived(
+    [
+      "2.25rem",
+      "minmax(10rem,1fr)",
+      ...columnTagDimensions.map((dimension) => columnWidth(dimension.name)),
+      "4.5rem",
+      "5.5rem",
+    ].join(" "),
+  );
+  let lastViewportKey: string | null = null;
+  let virtualTotalSize = $derived($visibleSamples.length * ROW_HEIGHT);
+  let virtualStartIndex = $derived(
+    Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - VIRTUAL_OVERSCAN),
+  );
+  let virtualEndIndex = $derived(
+    Math.min(
+      $visibleSamples.length,
+      Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + VIRTUAL_OVERSCAN,
+    ),
+  );
+  let virtualItems: VirtualRow[] = $derived(
+    $visibleSamples
+      .slice(virtualStartIndex, virtualEndIndex)
+      .map((sample, offset) => {
+        const index = virtualStartIndex + offset;
+        return {
+          sample,
+          index,
+          key: sample.id,
+          start: index * ROW_HEIGHT,
+        };
+      }),
+  );
 
   $effect(() => {
-    const count = $visibleSamples.length;
     const el = scrollContainerRef;
-    untrack(() => {
-      get(virtualizer).setOptions({
-        count,
-        getScrollElement: () => el,
-        estimateSize: () => ROW_HEIGHT,
-        overscan: 20,
-      });
-    });
-    el?.scrollTo(0, 0);
+    if (!el) return;
+
+    const updateViewportHeight = () => {
+      viewportHeight = el.clientHeight;
+    };
+    updateViewportHeight();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateViewportHeight);
+    observer.observe(el);
+    return () => observer.disconnect();
   });
 
   $effect(() => {
-    const options = optionsForDimension(bulkDimension);
-    if (!options.includes(bulkValue)) {
-      bulkValue = options[0] ?? "";
+    const key = $reviewViewportKey;
+    const el = scrollContainerRef;
+    if (lastViewportKey !== null && key !== lastViewportKey) {
+      expandedConflictSampleId = null;
+      editing = null;
+      scrollTop = 0;
+      el?.scrollTo({ top: 0, left: 0 });
+    }
+    lastViewportKey = key;
+  });
+
+  $effect(() => {
+    const el = scrollContainerRef;
+    if (!el) return;
+    const maxOffset = Math.max(0, virtualTotalSize - viewportHeight);
+    if (scrollTop > maxOffset) {
+      scrollTop = maxOffset;
+      el.scrollTop = maxOffset;
     }
   });
 
-  function formatBytes(bytes: number | null): string {
-    if (bytes == null) return "-";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  $effect(() => {
+    if (editableTagDimensions.length === 0) return;
+    if (!editableTagDimensions.some((dimension) => dimension.name === bulkDimension)) {
+      bulkDimension = editableTagDimensions[0]?.name ?? "";
+      return;
+    }
+
+    const dimension = dimensionByName(bulkDimension);
+    if (!dimension) return;
+    if (isOptionDimension(dimension) && !dimension.values.includes(bulkValue)) {
+      bulkValue = defaultValueForDimension(dimension);
+    }
+  });
+
+  function formatDuration(durationMs: number | null): string {
+    if (durationMs == null) return "-";
+    const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }
 
   function sortLabel(key: SortKey): string {
@@ -118,16 +221,38 @@
     return normalizedPath.slice(0, lastSlash);
   }
 
-  function optionsForDimension(dimension: "Type" | "Instrument"): string[] {
-    return dimension === "Type" ? typeOptions : instrumentOptions;
+  function isPresent<T>(value: T | undefined): value is T {
+    return value !== undefined;
   }
 
-  function startEditing(sample: SampleRow, dimension: "Type" | "Instrument") {
-    const fallback = optionsForDimension(dimension)[0] ?? "";
+  function isEditableDimension(dimension: TagDimension): boolean {
+    return dimension.value_type === "numeric" || dimension.values.length > 0;
+  }
+
+  function isOptionDimension(dimension: TagDimension): boolean {
+    return ["enum", "multi_enum"].includes(dimension.value_type);
+  }
+
+  function dimensionByName(name: string): TagDimension | undefined {
+    return effectiveTagDimensions.find((dimension) => dimension.name === name);
+  }
+
+  function defaultValueForDimension(dimension: TagDimension): string {
+    if (dimension.value_type === "numeric") return "";
+    return dimension.values[0] ?? "";
+  }
+
+  function columnWidth(dimension: string): string {
+    if (dimension === "Instrument") return "10rem";
+    if (dimension === "Key") return "5rem";
+    return "7rem";
+  }
+
+  function startEditing(sample: SampleRow, dimension: TagDimension) {
     editing = {
       sampleId: sample.id,
-      dimension,
-      value: displayTagValues(sample, dimension)[0] ?? fallback,
+      dimension: dimension.name,
+      value: displayTagValues(sample, dimension.name)[0] ?? defaultValueForDimension(dimension),
     };
   }
 
@@ -154,6 +279,7 @@
   }
 
   async function applyBulkTag() {
+    if (!bulkTagDimension || bulkValue.trim().length === 0) return;
     const sampleIds = [...$selectedSampleIds];
     for (const sampleId of sampleIds) {
       const result = await commands.setUserTag(sampleId, bulkDimension, bulkValue);
@@ -166,6 +292,7 @@
   }
 
   async function clearBulkTag() {
+    if (!bulkTagDimension) return;
     const sampleIds = [...$selectedSampleIds];
     for (const sampleId of sampleIds) {
       const result = await commands.clearUserTag(sampleId, bulkDimension);
@@ -192,12 +319,88 @@
   }
 
   function selectRow(sampleId: number, event: MouseEvent) {
+    if (suppressNextRowClick) {
+      suppressNextRowClick = false;
+      return;
+    }
     if (isInteractiveRowTarget(event.target)) return;
     toggleSelection(sampleId, event.ctrlKey || event.metaKey);
   }
 
+  function selectRowFromKeyboard(sampleId: number, event: KeyboardEvent) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (isInteractiveRowTarget(event.target)) return;
+    event.preventDefault();
+    toggleSelection(sampleId, event.ctrlKey || event.metaKey);
+  }
+
+  function playRow(sampleId: number, event: MouseEvent) {
+    if (isInteractiveRowTarget(event.target)) return;
+    void loadPlaybackSample(sampleId, { autoplay: true });
+  }
+
+  function startDragSelection(sampleId: number, event: PointerEvent) {
+    if (event.button !== 0 || isInteractiveRowTarget(event.target)) return;
+
+    pendingDragSelection = {
+      sampleId,
+      mode: $selectedSampleIds.has(sampleId) ? "deselect" : "select",
+      clientX: event.clientX,
+      clientY: event.clientY,
+    };
+  }
+
+  function continueDragSelection(sampleId: number, event: PointerEvent) {
+    if ((event.buttons & 1) !== 1) {
+      endDragSelection();
+      return;
+    }
+    if (pendingDragSelection) {
+      beginDragSelection();
+    }
+    if (!dragSelectionMode) return;
+    applyDragSelection(sampleId);
+  }
+
+  function moveDragSelection(sampleId: number, event: PointerEvent) {
+    if (!pendingDragSelection || pendingDragSelection.sampleId !== sampleId) return;
+    if ((event.buttons & 1) !== 1) {
+      endDragSelection();
+      return;
+    }
+
+    const moved =
+      Math.abs(event.clientX - pendingDragSelection.clientX) >= 3 ||
+      Math.abs(event.clientY - pendingDragSelection.clientY) >= 3;
+    if (!moved) return;
+
+    beginDragSelection();
+  }
+
+  function beginDragSelection() {
+    if (!pendingDragSelection) return;
+    dragSelectionMode = pendingDragSelection.mode;
+    suppressNextRowClick = true;
+    applyDragSelection(pendingDragSelection.sampleId);
+    pendingDragSelection = null;
+  }
+
+  function endDragSelection() {
+    dragSelectionMode = null;
+    pendingDragSelection = null;
+  }
+
+  function applyDragSelection(sampleId: number) {
+    if (!dragSelectionMode) return;
+    setSelectionState(sampleId, dragSelectionMode === "select");
+  }
+
   function isInteractiveRowTarget(target: EventTarget | null): boolean {
     return target instanceof HTMLElement && target.closest(INTERACTIVE_ROW_SELECTOR) !== null;
+  }
+
+  function updateScrollPosition(event: Event) {
+    scrollTop = event.currentTarget instanceof HTMLElement ? event.currentTarget.scrollTop : 0;
   }
 
   async function refreshSamples() {
@@ -205,6 +408,8 @@
     if (result.status === "ok") samples.set(result.data);
   }
 </script>
+
+<svelte:window onpointerup={endDragSelection} onblur={endDragSelection} />
 
 <div class="flex min-h-0 flex-1 flex-col bg-card">
   {#if $visibleSamples.length === 0}
@@ -225,61 +430,83 @@
     </div>
   {:else}
     <div class="relative min-h-0 flex-1">
-      <div class="h-full overflow-auto" bind:this={scrollContainerRef}>
-        <Table class="table-fixed">
-          <TableHeader class="sticky top-0 z-10 bg-card">
-            <TableRow class="text-xs text-muted-foreground">
-              <TableHead class="w-9"></TableHead>
-              <TableHead>
-                <button type="button" onclick={() => setSort("filename")}>Sample{sortLabel("filename")}</button>
-              </TableHead>
-              <TableHead class="w-36">
-                <button type="button" onclick={() => setSort("type")}>Type{sortLabel("type")}</button>
-              </TableHead>
-              <TableHead class="w-52">
-                <button type="button" onclick={() => setSort("instrument")}>
-                  Instrument{sortLabel("instrument")}
-                </button>
-              </TableHead>
-              <TableHead class="w-20">Conflict</TableHead>
-              <TableHead class="w-24">Format</TableHead>
-              <TableHead class="w-28">Size</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {@const items = $virtualizer.getVirtualItems()}
-            {#if items.length > 0}
-              <tr style="height: {items[0]?.start ?? 0}px"></tr>
-              {#each items as virtualRow (virtualRow.key)}
-                {@const sample = $visibleSamples[virtualRow.index]!}
-                {@const selected = $selectedSampleIds.has(sample.id)}
-                <TableRow
-                  data-state={selected ? "selected" : undefined}
-                  class="h-[44px]"
-                  onclick={(event) => selectRow(sample.id, event)}
-                >
-                  <TableCell class="py-1.5">
-                    <Checkbox
-                      aria-label={`Select ${sample.filename}`}
-                      checked={selected}
-                      onCheckedChange={() => toggleSelection(sample.id, true)}
-                    />
-                  </TableCell>
-                  <TableCell class="py-1.5">
-                    <div class="truncate font-mono text-xs leading-tight">{sample.filename}</div>
-                    {#if directoryPath(sample)}
-                      <div class="truncate font-mono text-[11px] leading-tight text-muted-foreground">
-                        {directoryPath(sample)}
-                      </div>
-                    {/if}
-                  </TableCell>
-                  <TableCell class="py-1.5">
+      <div class="flex h-full min-h-0 flex-col">
+        <div
+          class="grid h-9 shrink-0 items-center border-b bg-card text-xs font-medium text-muted-foreground"
+          style={`grid-template-columns: ${gridTemplateColumns};`}
+        >
+          <div class="px-2"></div>
+          <button
+            type="button"
+            class="min-w-0 px-3 text-left hover:text-foreground"
+            onclick={() => setSort("filename")}
+          >
+            Sample{sortLabel("filename")}
+          </button>
+          {#each columnTagDimensions as dimension}
+            {@const key = dimensionSortKey(dimension.name)}
+            <button
+              type="button"
+              class="min-w-0 px-3 text-left hover:text-foreground"
+              onclick={() => setSort(key)}
+            >
+              {dimension.name}{sortLabel(key)}
+            </button>
+          {/each}
+          <div class="px-3">Conflict</div>
+          <div class="px-3">Duration</div>
+        </div>
+
+        <div
+          class="min-h-0 flex-1 overflow-auto"
+          data-testid="sample-scroll-container"
+          bind:this={scrollContainerRef}
+          onscroll={updateScrollPosition}
+        >
+          <div
+            class="relative w-full"
+            style={`height: ${virtualTotalSize}px;`}
+          >
+            {#each virtualItems as virtualRow (virtualRow.key)}
+              {@const sample = $visibleSamples[virtualRow.index]!}
+              {@const selected = $selectedSampleIds.has(sample.id)}
+              <div
+                data-index={virtualRow.index}
+                data-state={selected ? "selected" : undefined}
+                role="row"
+                tabindex="0"
+                class="absolute left-0 top-0 grid w-full min-w-full items-center border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                style={`height: ${ROW_HEIGHT}px; transform: translateY(${virtualRow.start}px); grid-template-columns: ${gridTemplateColumns};`}
+                onpointerdown={(event) => startDragSelection(sample.id, event)}
+                onpointermove={(event) => moveDragSelection(sample.id, event)}
+                onpointerenter={(event) => continueDragSelection(sample.id, event)}
+                onclick={(event) => selectRow(sample.id, event)}
+                ondblclick={(event) => playRow(sample.id, event)}
+                onkeydown={(event) => selectRowFromKeyboard(sample.id, event)}
+              >
+                <div class="flex min-w-0 items-center px-2">
+                  <Checkbox
+                    aria-label={`Select ${sample.filename}`}
+                    checked={selected}
+                    onCheckedChange={() => toggleSelection(sample.id, true)}
+                  />
+                </div>
+                <div class="min-w-0 overflow-hidden px-3 py-1.5">
+                  <div class="truncate font-mono text-xs leading-tight">{sample.filename}</div>
+                  {#if directoryPath(sample)}
+                    <div class="truncate font-mono text-[11px] leading-tight text-muted-foreground">
+                      {directoryPath(sample)}
+                    </div>
+                  {/if}
+                </div>
+                {#each columnTagDimensions as dimension}
+                  <div class="min-w-0 overflow-hidden px-3 py-1.5">
                     <button
                       type="button"
-                      class="flex max-w-full flex-wrap gap-1 text-left"
-                      onclick={() => startEditing(sample, "Type")}
+                      class="flex max-w-full flex-nowrap gap-1 overflow-hidden text-left"
+                      onclick={() => startEditing(sample, dimension)}
                     >
-                      {#each displayTags(sample, "Type") as tag}
+                      {#each displayTags(sample, dimension.name) as tag}
                         <Badge variant={tag.is_primary ? "soft" : "outline"}>
                           {tag.value}
                         </Badge>
@@ -287,78 +514,33 @@
                         <span class="text-xs text-muted-foreground">-</span>
                       {/each}
                     </button>
-                  </TableCell>
-                  <TableCell class="py-1.5">
-                    <button
-                      type="button"
-                      class="flex max-w-full flex-wrap gap-1 text-left"
-                      onclick={() => startEditing(sample, "Instrument")}
-                    >
-                      {#each displayTags(sample, "Instrument") as tag}
-                        <Badge variant={tag.is_primary ? "soft" : "outline"}>
-                          {tag.value}
-                        </Badge>
-                      {:else}
-                        <span class="text-xs text-muted-foreground">-</span>
-                      {/each}
+                  </div>
+                {/each}
+                <div class="min-w-0 overflow-hidden px-3 py-1.5">
+                  {#if hasConflict(sample)}
+                    <button type="button" onclick={() => toggleConflictPanel(sample.id)}>
+                      <Badge variant="destructive"><AlertTriangle class="size-3" /> auto</Badge>
                     </button>
-                  </TableCell>
-                  <TableCell class="py-1.5">
-                    {#if hasConflict(sample)}
-                      <button type="button" onclick={() => toggleConflictPanel(sample.id)}>
-                        <Badge variant="destructive"><AlertTriangle class="size-3" /> auto</Badge>
-                      </button>
-                    {:else}
-                      <span class="text-xs text-muted-foreground">-</span>
-                    {/if}
-                  </TableCell>
-                  <TableCell class="py-1.5 text-xs uppercase text-muted-foreground">
-                    {sample.format ?? "-"}
-                  </TableCell>
-                  <TableCell class="py-1.5 text-xs text-muted-foreground">
-                    {formatBytes(sample.size_bytes)}
-                  </TableCell>
-                </TableRow>
-                {#if expandedConflictSampleId === sample.id}
-                  <TableRow class="bg-muted/40 hover:bg-muted/40">
-                    <TableCell></TableCell>
-                    <TableCell colspan={6}>
-                      <div class="space-y-3 rounded-md border bg-background p-3">
-                        {#each sample.conflicts as conflict}
-                          <section>
-                            <div class="mb-2 text-xs font-medium uppercase text-muted-foreground">
-                              {conflict.dimension}
-                            </div>
-                            <div class="flex flex-wrap gap-2">
-                              {#each conflict.candidates as candidate}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  class="h-auto flex-col items-start py-2 text-xs"
-                                  onclick={() =>
-                                    resolveConflict(sample.id, conflict.dimension, candidate.value)}
-                                >
-                                  <div class="font-medium">{candidate.value}</div>
-                                  <div class="text-muted-foreground">
-                                    {candidate.source}{candidate.confidence === null
-                                      ? ""
-                                      : ` ${(candidate.confidence * 100).toFixed(0)}%`}
-                                  </div>
-                                </Button>
-                              {/each}
-                            </div>
-                          </section>
-                        {/each}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                {/if}
-              {/each}
-              <tr style="height: {$virtualizer.getTotalSize() - (items[items.length - 1]?.end ?? 0)}px"></tr>
-            {/if}
-          </TableBody>
-        </Table>
+                  {:else}
+                    <span class="text-xs text-muted-foreground">-</span>
+                  {/if}
+                </div>
+                <div class="min-w-0 truncate px-3 py-1.5 text-xs text-muted-foreground">
+                  {formatDuration(sample.duration_ms)}
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
       </div>
+
+      {#if expandedConflictSample}
+        <ConflictResolver
+          sample={expandedConflictSample}
+          onResolve={resolveConflict}
+          onClose={() => (expandedConflictSampleId = null)}
+        />
+      {/if}
 
       {#if selectedCount > 1}
         <div class="absolute bottom-3 left-3 z-20 flex h-10 items-center gap-2 rounded-md border bg-background px-3 shadow-sm">
@@ -367,33 +549,45 @@
           <Select
             type="single"
             value={bulkDimension}
-            onValueChange={(v) => { if (v) bulkDimension = v as "Type" | "Instrument"; }}
+            onValueChange={(v) => { if (v) bulkDimension = v; }}
           >
             <SelectTrigger size="sm" class="w-32">
               <SelectPrimitive.Value placeholder="Dimension" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Type">Type</SelectItem>
-              <SelectItem value="Instrument">Instrument</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            type="single"
-            value={bulkValue}
-            onValueChange={(v) => { if (v) bulkValue = v; }}
-          >
-            <SelectTrigger size="sm" class="w-32">
-              <SelectPrimitive.Value placeholder="Value" />
-            </SelectTrigger>
-            <SelectContent>
-              {#each optionsForDimension(bulkDimension) as value}
-                <SelectItem {value}>{value}</SelectItem>
+              {#each editableTagDimensions as dimension}
+                <SelectItem value={dimension.name}>{dimension.name}</SelectItem>
               {/each}
             </SelectContent>
           </Select>
 
-          <Button size="sm" onclick={applyBulkTag}>Set tag</Button>
+          {#if bulkTagDimension}
+            {#if isOptionDimension(bulkTagDimension)}
+              <Select
+                type="single"
+                value={bulkValue}
+                onValueChange={(v) => { if (v) bulkValue = v; }}
+              >
+                <SelectTrigger size="sm" class="w-32">
+                  <SelectPrimitive.Value placeholder="Value" />
+                </SelectTrigger>
+                <SelectContent>
+                  {#each bulkTagDimension.values as value}
+                    <SelectItem {value}>{value}</SelectItem>
+                  {/each}
+                </SelectContent>
+              </Select>
+            {:else}
+              <Input
+                type="number"
+                class="h-8 w-24"
+                value={bulkValue}
+                oninput={(event) => (bulkValue = event.currentTarget.value)}
+              />
+            {/if}
+          {/if}
+
+          <Button size="sm" onclick={applyBulkTag} disabled={!bulkTagDimension || bulkValue.trim().length === 0}>Set tag</Button>
           <Button variant="outline" size="sm" onclick={clearBulkTag}>
             Clear tag
           </Button>
@@ -407,29 +601,23 @@
   {/if}
 
   {#if editing}
+    {@const editingDimension = dimensionByName(editing.dimension)}
     <div class="border-t bg-background p-3">
       <div class="flex items-center gap-2">
         <Pencil class="size-4 text-muted-foreground" />
-        <span class="text-sm font-medium">Edit {editing.dimension}</span>
-
-        <Select
-          type="single"
-          value={editing.value}
-          onValueChange={(v) => { if (editing && v) editing = { ...editing, value: v }; }}
-        >
-          <SelectTrigger size="sm" class="w-36">
-            <SelectPrimitive.Value placeholder="Select..." />
-          </SelectTrigger>
-          <SelectContent>
-            {#each optionsForDimension(editing.dimension) as value}
-              <SelectItem {value}>{value}</SelectItem>
-            {/each}
-          </SelectContent>
-        </Select>
-
-        <Button size="sm" onclick={saveEditing}>Save</Button>
-        <Button variant="outline" size="sm" onclick={clearEditing}>Clear user tag</Button>
-        <Button variant="ghost" size="sm" onclick={() => (editing = null)}>Cancel</Button>
+        {#if editingDimension}
+          <TagValueEditor
+            dimension={editingDimension}
+            value={editing.value}
+            label={`Edit ${editing.dimension}`}
+            onValueChange={(value) => {
+              if (editing) editing = { ...editing, value };
+            }}
+            onSave={saveEditing}
+            onClear={clearEditing}
+            onCancel={() => (editing = null)}
+          />
+        {/if}
       </div>
     </div>
   {/if}

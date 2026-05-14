@@ -70,6 +70,40 @@ async fn test_open_seeds_system_tag_dimensions() {
 }
 
 #[tokio::test]
+async fn test_tag_dimensions_lists_seeded_values() {
+    let dir = TempDir::new().unwrap();
+    let pool = make_pool(&dir).await;
+    sonoscope_lib::library::open::open_or_create_library(dir.path().to_str().unwrap(), &pool)
+        .await
+        .unwrap();
+
+    let dimensions = sonoscope_lib::commands::tag_dimensions(&pool)
+        .await
+        .unwrap();
+
+    let type_dimension = dimensions
+        .iter()
+        .find(|dimension| dimension.name == "Type")
+        .expect("Type dimension should be present");
+    assert_eq!(
+        type_dimension.value_type,
+        sonoscope_lib::error::DimensionValueType::Enum
+    );
+    assert!(type_dimension.values.contains(&"loop".to_string()));
+    assert!(type_dimension.values.contains(&"one-shot".to_string()));
+
+    let tempo_dimension = dimensions
+        .iter()
+        .find(|dimension| dimension.name == "Tempo")
+        .expect("Tempo dimension should be present");
+    assert_eq!(
+        tempo_dimension.value_type,
+        sonoscope_lib::error::DimensionValueType::Numeric
+    );
+    assert!(tempo_dimension.values.is_empty());
+}
+
+#[tokio::test]
 async fn test_open_is_idempotent() {
     let dir = TempDir::new().unwrap();
     let db_path = dir.path().join("library.db");
@@ -256,8 +290,16 @@ async fn test_user_tag_write_and_clear_preserves_auto_tags() {
             .fetch_one(&pool)
             .await
             .unwrap();
+    let (auto_primary_while_user_count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM tags WHERE sample_id = ? AND source = 'heuristic' AND is_primary = 1",
+    )
+    .bind(sample_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     assert_eq!(user_primary_count, 1);
     assert_eq!(auto_after_user_count, 1);
+    assert_eq!(auto_primary_while_user_count, 0);
 
     sonoscope_lib::commands::clear_user_tag_for_dimension(&pool, sample_id, dimension_id)
         .await
@@ -286,6 +328,46 @@ async fn test_user_tag_write_and_clear_preserves_auto_tags() {
     .await
     .unwrap();
     assert_eq!(auto_primary_count, 1);
+}
+
+#[tokio::test]
+async fn test_single_value_user_tag_replaces_existing_user_value() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("loop.wav"), b"fake").unwrap();
+
+    let pool = make_pool(&dir).await;
+    sonoscope_lib::library::open::open_or_create_library(dir.path().to_str().unwrap(), &pool)
+        .await
+        .unwrap();
+    sonoscope_lib::library::discover::run_discovery(dir.path(), &pool, |_| {})
+        .await
+        .unwrap();
+
+    let (sample_id,): (i64,) = sqlx::query_as("SELECT id FROM samples LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+    sonoscope_lib::commands::write_user_tag(&pool, sample_id, "Type", "loop")
+        .await
+        .unwrap();
+    sonoscope_lib::commands::write_user_tag(&pool, sample_id, "Type", "one-shot")
+        .await
+        .unwrap();
+
+    let user_values: Vec<(String,)> = sqlx::query_as(
+        "SELECT dv.value
+         FROM tags t
+         JOIN dimension_values dv ON dv.id = t.value_id
+         WHERE t.sample_id = ? AND t.source = 'user'
+         ORDER BY dv.value",
+    )
+    .bind(sample_id)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(user_values, vec![("one-shot".to_string(),)]);
 }
 
 #[tokio::test]
@@ -381,4 +463,95 @@ async fn test_requeue_all_samples_marks_existing_samples_pending() {
             .await
             .unwrap();
     assert_eq!(pending_count, 1);
+}
+
+#[tokio::test]
+async fn test_playback_sample_returns_validated_sample_path() {
+    let dir = TempDir::new().unwrap();
+    let sample_path = dir.path().join("kick.wav");
+    fs::write(&sample_path, b"fake").unwrap();
+
+    let pool = make_pool(&dir).await;
+    sonoscope_lib::library::open::open_or_create_library(dir.path().to_str().unwrap(), &pool)
+        .await
+        .unwrap();
+    sonoscope_lib::library::discover::run_discovery(dir.path(), &pool, |_| {})
+        .await
+        .unwrap();
+
+    let (sample_id,): (i64,) = sqlx::query_as("SELECT id FROM samples LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE samples SET duration_ms = 250, waveform_data = ? WHERE id = ?")
+        .bind(vec![0_u8, 128, 255])
+        .bind(sample_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (loop_value_id,): (i64,) =
+        sqlx::query_as("SELECT id FROM dimension_values WHERE dimension_id = 1 AND value = 'loop'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    sqlx::query(
+        "INSERT INTO tags
+         (sample_id, dimension_id, value_id, source, confidence, created_at, is_primary)
+         VALUES (?, 1, ?, 'heuristic', 0.9, 1, 1)",
+    )
+    .bind(sample_id)
+    .bind(loop_value_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let playback = sonoscope_lib::commands::playback_sample(&pool, dir.path(), sample_id)
+        .await
+        .unwrap();
+
+    assert_eq!(playback.id, sample_id);
+    assert_eq!(playback.filename, "kick.wav");
+    assert_eq!(playback.duration_ms, Some(250));
+    assert_eq!(playback.waveform_data, Some(vec![0, 128, 255]));
+    assert!(playback.is_loop);
+    assert_eq!(
+        playback.path,
+        sample_path.canonicalize().unwrap().to_string_lossy()
+    );
+}
+
+#[tokio::test]
+async fn test_playback_sample_rejects_paths_outside_library_root() {
+    let dir = TempDir::new().unwrap();
+    let outside_dir = TempDir::new().unwrap();
+    let outside_path = outside_dir.path().join("outside.wav");
+    fs::write(&outside_path, b"fake").unwrap();
+
+    let pool = make_pool(&dir).await;
+    sonoscope_lib::library::open::open_or_create_library(dir.path().to_str().unwrap(), &pool)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO samples
+         (path, filename, relative_path, format, size_bytes, analysis_status, discovered_at, last_seen_at)
+         VALUES (?, 'outside.wav', 'outside.wav', 'wav', 4, 'pending', 1, 1)",
+    )
+    .bind(outside_path.to_string_lossy().to_string())
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let (sample_id,): (i64,) = sqlx::query_as("SELECT id FROM samples LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+    let result = sonoscope_lib::commands::playback_sample(&pool, dir.path(), sample_id).await;
+
+    assert!(matches!(
+        result,
+        Err(sonoscope_lib::error::CommandError::Other(message))
+            if message == "Sample is outside the opened library"
+    ));
 }

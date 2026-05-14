@@ -6,7 +6,7 @@ use crate::state::AppState;
 use serde::Serialize;
 use specta::Type;
 use specta_typescript::Number;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -22,6 +22,8 @@ pub struct SampleRow {
     pub format: Option<String>,
     #[specta(type = Option<Number<i64>>)]
     pub size_bytes: Option<i64>,
+    #[specta(type = Option<Number<i64>>)]
+    pub duration_ms: Option<i64>,
     pub analysis_status: AnalysisStatus,
     pub tags: Vec<SampleTag>,
     pub conflicts: Vec<TagConflict>,
@@ -40,6 +42,25 @@ pub struct SampleTag {
 pub struct TagConflict {
     pub dimension: String,
     pub candidates: Vec<SampleTag>,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct TagDimension {
+    pub name: String,
+    pub value_type: DimensionValueType,
+    pub values: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct PlaybackSample {
+    #[specta(type = Number<i64>)]
+    pub id: i64,
+    pub filename: String,
+    pub path: String,
+    #[specta(type = Option<Number<i64>>)]
+    pub duration_ms: Option<i64>,
+    pub waveform_data: Option<Vec<u8>>,
+    pub is_loop: bool,
 }
 
 #[tauri::command]
@@ -139,12 +160,13 @@ pub async fn get_samples(state: State<'_, AppState>) -> Result<Vec<SampleRow>, C
         relative_path: String,
         format: Option<String>,
         size_bytes: Option<i64>,
+        duration_ms: Option<i64>,
         analysis_status: AnalysisStatus,
     }
 
     let rows = sqlx::query_as!(
         Row,
-        "SELECT id, filename, relative_path, format, size_bytes, analysis_status as \"analysis_status: AnalysisStatus\"
+        "SELECT id, filename, relative_path, format, size_bytes, duration_ms, analysis_status as \"analysis_status: AnalysisStatus\"
          FROM samples ORDER BY relative_path",
     )
     .fetch_all(pool)
@@ -160,6 +182,7 @@ pub async fn get_samples(state: State<'_, AppState>) -> Result<Vec<SampleRow>, C
             relative_path: r.relative_path,
             format: r.format,
             size_bytes: r.size_bytes,
+            duration_ms: r.duration_ms,
             analysis_status: r.analysis_status,
             tags,
             conflicts,
@@ -167,6 +190,16 @@ pub async fn get_samples(state: State<'_, AppState>) -> Result<Vec<SampleRow>, C
     }
 
     Ok(samples)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_tag_dimensions(
+    state: State<'_, AppState>,
+) -> Result<Vec<TagDimension>, CommandError> {
+    let guard = state.db.lock().await;
+    let pool = guard.as_ref().ok_or(CommandError::NoLibraryOpen)?;
+    tag_dimensions(pool).await
 }
 
 #[tauri::command]
@@ -201,6 +234,102 @@ pub async fn clear_user_tag(
     .ok_or_else(|| CommandError::Other("Unknown dimension".to_string()))?;
 
     clear_user_tag_for_dimension(pool, sample_id, dimension.id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_sample_playback(
+    sample_id: i32,
+    state: State<'_, AppState>,
+) -> Result<PlaybackSample, CommandError> {
+    let guard = state.db.lock().await;
+    let pool = guard.as_ref().ok_or(CommandError::NoLibraryOpen)?;
+    let root_guard = state.library_root.lock().await;
+    let library_root = root_guard.as_ref().ok_or(CommandError::NoLibraryOpen)?;
+
+    playback_sample(pool, library_root, i64::from(sample_id)).await
+}
+
+pub async fn playback_sample(
+    pool: &sqlx::SqlitePool,
+    library_root: &Path,
+    sample_id: i64,
+) -> Result<PlaybackSample, CommandError> {
+    let row = sqlx::query!(
+        "SELECT id as \"id!: i64\", filename, path, duration_ms, waveform_data
+         FROM samples
+         WHERE id = ?",
+        sample_id,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| CommandError::Other("Unknown sample".to_string()))?;
+
+    let canonical_root = library_root.canonicalize()?;
+    let canonical_sample = PathBuf::from(&row.path).canonicalize()?;
+    if !canonical_sample.starts_with(&canonical_root) {
+        return Err(CommandError::Other(
+            "Sample is outside the opened library".to_string(),
+        ));
+    }
+
+    let loop_type = sqlx::query!(
+        "SELECT 1 as \"exists!: i64\"
+         FROM tags t
+         JOIN dimensions d ON d.id = t.dimension_id
+         JOIN dimension_values dv ON dv.id = t.value_id
+         WHERE t.sample_id = ?
+           AND t.is_primary = 1
+           AND d.name = 'Type'
+           AND dv.value = 'loop'
+         LIMIT 1",
+        sample_id,
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(PlaybackSample {
+        id: row.id,
+        filename: row.filename,
+        path: canonical_sample.to_string_lossy().to_string(),
+        duration_ms: row.duration_ms,
+        waveform_data: row.waveform_data,
+        is_loop: loop_type.is_some(),
+    })
+}
+
+pub async fn tag_dimensions(pool: &sqlx::SqlitePool) -> Result<Vec<TagDimension>, CommandError> {
+    let dimensions = sqlx::query!(
+        "SELECT id as \"id!: i64\", name, value_type as \"value_type: DimensionValueType\"
+         FROM dimensions
+         ORDER BY sort_order, name",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut result = Vec::with_capacity(dimensions.len());
+    for dimension in dimensions {
+        let values = sqlx::query!(
+            "SELECT value
+             FROM dimension_values
+             WHERE dimension_id = ?
+             ORDER BY value",
+            dimension.id,
+        )
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .map(|row| row.value)
+        .collect();
+
+        result.push(TagDimension {
+            name: dimension.name,
+            value_type: dimension.value_type,
+            values,
+        });
+    }
+
+    Ok(result)
 }
 
 async fn sample_tags(
@@ -329,7 +458,10 @@ pub async fn write_user_tag(
     .await?
     .ok_or_else(|| CommandError::Other(format!("Unknown dimension: {dimension_name}")))?;
 
-    clear_primary_tag_for_dimension(pool, sample_id, dimension.id).await?;
+    if !matches!(dimension.value_type, DimensionValueType::MultiEnum) {
+        delete_user_tags_for_dimension(pool, sample_id, dimension.id).await?;
+    }
+    clear_all_primary_tags_for_dimension(pool, sample_id, dimension.id).await?;
 
     let user_source = TagSource::User;
     let now = unix_now();
@@ -406,18 +538,22 @@ pub async fn clear_primary_tag_for_dimension(
     sample_id: i64,
     dimension_id: i64,
 ) -> Result<(), CommandError> {
-    sqlx::query!(
-        "UPDATE tags SET is_primary = 0 WHERE sample_id = ? AND dimension_id = ?",
-        sample_id,
-        dimension_id,
-    )
-    .execute(pool)
-    .await?;
+    clear_all_primary_tags_for_dimension(pool, sample_id, dimension_id).await?;
     mark_auto_primary_for_dimension(pool, sample_id, dimension_id).await?;
     Ok(())
 }
 
 pub async fn clear_user_tag_for_dimension(
+    pool: &sqlx::SqlitePool,
+    sample_id: i64,
+    dimension_id: i64,
+) -> Result<(), CommandError> {
+    delete_user_tags_for_dimension(pool, sample_id, dimension_id).await?;
+    mark_auto_primary_for_dimension(pool, sample_id, dimension_id).await?;
+    Ok(())
+}
+
+async fn delete_user_tags_for_dimension(
     pool: &sqlx::SqlitePool,
     sample_id: i64,
     dimension_id: i64,
@@ -428,6 +564,21 @@ pub async fn clear_user_tag_for_dimension(
         sample_id,
         dimension_id,
         user_source,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn clear_all_primary_tags_for_dimension(
+    pool: &sqlx::SqlitePool,
+    sample_id: i64,
+    dimension_id: i64,
+) -> Result<(), CommandError> {
+    sqlx::query!(
+        "UPDATE tags SET is_primary = 0 WHERE sample_id = ? AND dimension_id = ?",
+        sample_id,
+        dimension_id,
     )
     .execute(pool)
     .await?;

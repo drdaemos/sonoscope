@@ -10,6 +10,7 @@ export function makeSample(overrides: Partial<SampleRow> = {}): SampleRow {
     relative_path: `drums/sample_${id}.wav`,
     format: "wav",
     size_bytes: 102400,
+    duration_ms: 1250,
     analysis_status: "done",
     tags: [],
     conflicts: [],

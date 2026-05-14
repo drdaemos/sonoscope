@@ -1,12 +1,25 @@
 <script lang="ts">
-  import { Boxes, History, ListMusic, Play } from "@lucide/svelte";
+  import { Boxes, History, ListMusic } from "@lucide/svelte";
+  import { onMount } from "svelte";
   import FileList from "$lib/components/FileList.svelte";
   import FilterSidebar from "$lib/components/FilterSidebar.svelte";
   import LibraryBar, { type AppView } from "$lib/components/LibraryBar.svelte";
-  import { Badge, Button, Card, CardHeader, CardTitle, CardContent, Separator, Slider } from "$lib/components/ui";
-  import { currentLibrary, samples } from "$lib/stores/library";
+  import PlaybackFooter from "$lib/components/PlaybackFooter.svelte";
+  import { Badge, Card, CardHeader, CardTitle, CardContent, Separator } from "$lib/components/ui";
+  import { currentLibrary, samples, tagDimensions } from "$lib/stores/library";
+  import { makeMockLibrary, makeMockSamples, makeMockTagDimensions } from "$lib/dev/mockReview";
 
   let activeView: AppView = "review";
+
+  onMount(() => {
+    if (!import.meta.env.DEV) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("mockReview")) return;
+
+    currentLibrary.set(makeMockLibrary());
+    tagDimensions.set(makeMockTagDimensions());
+    samples.set(makeMockSamples());
+  });
 </script>
 
 <div class="flex h-full min-h-0 flex-col bg-background text-foreground">
@@ -67,12 +80,5 @@
 
   <Separator />
 
-  <footer class="flex h-12 shrink-0 items-center gap-3 bg-background px-4 text-sm">
-    <Button variant="ghost" size="icon" disabled aria-label="Play selected sample">
-      <Play />
-    </Button>
-    <div class="min-w-48 text-muted-foreground">No sample loaded</div>
-    <Slider type="single" value={0} max={100} step={1} disabled class="flex-1" />
-    <div class="w-20 text-right text-xs text-muted-foreground">0:00 / 0:00</div>
-  </footer>
+  <PlaybackFooter />
 </div>

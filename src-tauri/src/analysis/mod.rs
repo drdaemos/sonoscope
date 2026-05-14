@@ -21,6 +21,7 @@ struct AnalyzeResponse {
     status: AnalyzeResponseStatus,
     tags: Vec<TagCandidate>,
     file_meta: Option<FileMeta>,
+    waveform_data: Option<Vec<u8>>,
     error: Option<String>,
 }
 
@@ -274,6 +275,15 @@ async fn persist_analysis_response(
         .execute(pool)
         .await?;
     }
+    if let Some(waveform_data) = &response.waveform_data {
+        sqlx::query!(
+            "UPDATE samples SET waveform_data = ? WHERE id = ?",
+            waveform_data,
+            sample_id,
+        )
+        .execute(pool)
+        .await?;
+    }
 
     delete_auto_tags(pool, sample_id).await?;
     for tag in &response.tags {
@@ -461,9 +471,26 @@ fn now_unix() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{AnalyzeRequest, AnalyzerSidecar};
+    use super::{AnalyzeRequest, AnalyzeResponse, AnalyzerSidecar};
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn deserialize_response_with_waveform_data() {
+        let response: AnalyzeResponse = serde_json::from_str(
+            r#"{
+                "id": "sample-1",
+                "status": "ok",
+                "tags": [],
+                "file_meta": null,
+                "waveform_data": [0, 128, 255],
+                "error": null
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(response.waveform_data, Some(vec![0, 128, 255]));
+    }
 
     #[tokio::test]
     #[ignore = "requires spawning the uv-managed analyzer process"]

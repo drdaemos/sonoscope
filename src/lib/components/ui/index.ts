@@ -27,6 +27,7 @@ export {
   TableRow,
 } from "./table";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
+export { Toggle } from "./toggle";
 export { ToggleGroup, ToggleGroupItem } from "./toggle-group";
 export {
   Tooltip,

@@ -19,8 +19,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::cancel_discovery,
         commands::start_analysis,
         commands::get_samples,
+        commands::list_tag_dimensions,
         commands::set_user_tag,
         commands::clear_user_tag,
+        commands::get_sample_playback,
     ])
 }
 

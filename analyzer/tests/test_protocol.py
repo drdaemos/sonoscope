@@ -55,6 +55,7 @@ def test_response_ok_serializes() -> None:
         file_meta=FileMeta(
             format="wav", duration_ms=2048, sample_rate=44100, bit_depth=24, channels=1
         ),
+        waveform_data=[0, 128, 255],
     )
     parsed = AnalyzeResponse.model_validate_json(resp.model_dump_json())
     assert parsed.id == "abc-123"
@@ -65,6 +66,7 @@ def test_response_ok_serializes() -> None:
     assert parsed.file_meta is not None
     assert parsed.file_meta.format == "wav"
     assert parsed.file_meta.sample_rate == 44100
+    assert parsed.waveform_data == [0, 128, 255]
 
 
 def test_response_error_serializes() -> None:
@@ -81,6 +83,7 @@ def test_response_defaults_to_ok() -> None:
     resp = AnalyzeResponse(id="q1")
     assert resp.status == "ok"
     assert resp.tags == []
+    assert resp.waveform_data is None
 
 
 @pytest.mark.parametrize(

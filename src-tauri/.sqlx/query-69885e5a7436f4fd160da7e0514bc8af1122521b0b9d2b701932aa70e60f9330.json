@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE samples SET waveform_data = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "69885e5a7436f4fd160da7e0514bc8af1122521b0b9d2b701932aa70e60f9330"
+}

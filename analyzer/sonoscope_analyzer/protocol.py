@@ -31,4 +31,5 @@ class AnalyzeResponse(BaseModel):
     status: Literal["ok", "error"] = "ok"
     tags: list[TagCandidate] = Field(default_factory=list)
     file_meta: FileMeta | None = None
+    waveform_data: list[int] | None = None
     error: str | None = None

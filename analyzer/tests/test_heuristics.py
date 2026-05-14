@@ -1,4 +1,4 @@
-"""Tests for filename and path heuristic analysis."""
+"""Tests for filename heuristic analysis."""
 
 from __future__ import annotations
 
@@ -11,6 +11,14 @@ def tag_pairs(path: str) -> set[tuple[str, str]]:
     return {(tag.dimension, tag.value) for tag in analyze_path(path)}
 
 
+def tag_for(path: str, dimension: str, value: str):
+    return next(
+        tag
+        for tag in analyze_path(path)
+        if tag.dimension == dimension and tag.value == value
+    )
+
+
 @pytest.mark.parametrize(
     "path, expected",
     [
@@ -19,6 +27,7 @@ def tag_pairs(path: str) -> set[tuple[str, str]]:
         ("Drums/BD/deep_bd.wav", ("Instrument", "kick")),
         ("Drums/Bass Drum/acoustic bass drum.wav", ("Instrument", "kick")),
         ("Drums/Snares/snare_001.wav", ("Instrument", "snare")),
+        ("Drums/Snares/snare_001.wav", ("Type", "one-shot")),
         ("Drums/Snares/tight_snr.wav", ("Instrument", "snare")),
         ("Drums/SD/sd_rim.wav", ("Instrument", "snare")),
         ("Hats/open_hat.wav", ("Instrument", "hi-hat")),
@@ -50,6 +59,7 @@ def tag_pairs(path: str) -> set[tuple[str, str]]:
         ("FX/downlifter.wav", ("Instrument", "fx")),
         ("Foley/field_noise.wav", ("Instrument", "foley")),
         ("Foley/foley_hit.wav", ("Instrument", "foley")),
+        ("Foley/foley_hit.wav", ("Type", "one-shot")),
         ("Loops/drum_loop_120bpm.wav", ("Type", "loop")),
         ("Loops/drum_lp.wav", ("Type", "loop")),
         ("Loops/beat_l_120bpm.wav", ("Type", "loop")),
@@ -79,6 +89,9 @@ def test_heuristic_path_tags(path: str, expected: tuple[str, str]) -> None:
     [
         ("Documents/package.wav", ("Instrument", "kick")),
         ("Drums/snarepack/readme.wav", ("Instrument", "snare")),
+        ("Drums/Kicks/unknown.wav", ("Instrument", "kick")),
+        ("Loops/unknown.wav", ("Type", "loop")),
+        ("Keys/unknown.wav", ("Key", "A")),
         ("Loops/abc120bpmx.wav", ("Tempo", "120")),
         ("Keys/bassline.wav", ("Key", "A")),
         ("Keys/cable.wav", ("Key", "C")),
@@ -105,7 +118,7 @@ def test_heuristic_avoids_partial_token_matches(path: str, unexpected: tuple[str
             "Loops/guitar/DSC_MNG_114_electric_guitar_loop_freak_full_Ebmaj.wav",
             ("Instrument", "guitar"),
         ),
-        ("Loops/acoustic_guitar/song_loop_Gm.wav", ("Instrument", "guitar")),
+        ("Loops/acoustic_guitar/song_acoustic_guitar_loop_Gm.wav", ("Instrument", "guitar")),
         ("Loops/piano/OS_AD_95_piano_chords_hieroglyphics_Am.wav", ("Instrument", "piano")),
         (
             "Loops/electric_piano/SO_FH_120_electric_piano_chords_coldcat_Bmin.wav",
@@ -154,3 +167,9 @@ def test_heuristic_avoids_partial_token_matches(path: str, unexpected: tuple[str
 )
 def test_heuristic_new_tokens(path: str, expected: tuple[str, str]) -> None:
     assert expected in tag_pairs(path)
+
+
+def test_default_one_shot_uses_weak_fallback_confidence() -> None:
+    tag = tag_for("Drums/Snares/snare_001.wav", "Type", "one-shot")
+
+    assert tag.confidence == 0.05

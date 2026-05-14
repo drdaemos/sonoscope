@@ -1,10 +1,11 @@
 import { defineConfig } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { svelteTesting } from "@testing-library/svelte/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "url";
 
 export default defineConfig({
-  plugins: [tailwindcss(), svelte({ hot: false })],
+  plugins: [tailwindcss(), svelte({ hot: false }), svelteTesting()],
   resolve: {
     alias: {
       $lib: fileURLToPath(new URL("./src/lib", import.meta.url)),

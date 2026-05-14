@@ -46,7 +46,7 @@ Goal: user can open a folder, discover audio files, and see them in a basic list
 | Discovery progress events | Implemented | Emits `discovery-progress`, `discovery-complete`, and `discovery-cancelled`. |
 | Generated command bindings | Implemented | `openLibrary`, `startDiscovery`, `cancelDiscovery`, `getSamples`. |
 | Library selector UI | In progress | Header selector opens libraries, shows the selected library name, and stores five recent libraries in localStorage. |
-| Basic file list UI | In progress | `FileList.svelte` shows filename, path subtitle, primary/secondary tags, conflict state, format, and size using shared UI primitives. |
+| Basic file list UI | In progress | `FileList.svelte` shows filename, path subtitle, primary/secondary tags, conflict state, and audio duration using shared UI primitives. |
 
 ## Phase 2 — UI Foundation
 
@@ -71,7 +71,7 @@ Goal: files are analyzed by filename heuristics; tags appear in the list.
 | Pydantic IPC protocol models | Implemented | `analyzer/tests/test_protocol.py`; `uv run pytest`. |
 | Analyzer stdin/stdout loop | Implemented | Emits ready line and processes newline-delimited requests in `sonoscope_analyzer.main`. |
 | Heuristic token config | Implemented | `analyzer/sonoscope_analyzer/mappings/heuristic_tokens.json`. |
-| Filename/path heuristics | Implemented | 50+ parametrized cases in `analyzer/tests/test_heuristics.py`. |
+| Filename/path heuristics | Implemented | Filename-only matching with one-shot default when no Type is detected; 50+ parametrized cases in `analyzer/tests/test_heuristics.py`. |
 | Metadata extraction | Implemented | Mutagen + SoundFile coverage in `analyzer/tests/test_metadata.py`. |
 | Rust sidecar process manager | In progress | Long-lived uv-managed analyzer client exists; ignored Rust integration test passes when explicitly run with process-spawn access. |
 | Tags schema migration | Implemented | `src-tauri/migrations/002_tags.sql`, `003_expanded_tag_values.sql`, and `004_primary_tags.sql`. |
@@ -88,10 +88,10 @@ Goal: user can review and edit tags; filtering and search work.
 |---|---|---|
 | Filter sidebar | Implemented | Dimension chips with counts for Type, Instrument, and Key in `FilterSidebar.svelte`; verified by `npm run check` and `npm run build`. |
 | Filename search | Implemented | Real-time filename substring filter in `src/lib/stores/review.ts`; verified by `npm run check` and `npm run build`. |
-| Sortable columns | Implemented | Sample, Type, and Instrument sorting in `FileList.svelte`; verified by `npm run check` and `npm run build`. |
-| Inline tag editing | In progress | Type and Instrument primary-tag selection is wired; broader dimension support and stronger UX states remain. |
-| Bulk tag editor | In progress | Multi-select action bar supports Type/Instrument set and clear; broader dimension support remains. |
-| Conflict indicator and panel | In progress | Backend conflict data now excludes multi-value dimensions; current inline panel is functional but needs visual redesign into a primary/alternatives UI. |
+| Sortable columns | Implemented | Sample and tag-dimension sorting in `FileList.svelte`; review rows now use deterministic fixed-height virtualization to avoid stale measurement state across filter changes; verified by `npm run check`, `npm run test`, and `npm run build`. |
+| Inline tag editing | Implemented | Reusable tag editor supports enum, multi-enum, and numeric dimensions from typed dimension metadata; covered by `TagValueEditor.test.ts`, `npm run check`, and `npm run build`. |
+| Bulk tag editor | Implemented | Multi-select action bar uses typed dimension metadata for all editable enum, multi-enum, and numeric dimensions; row drag selection selects or deselects along a single drag path based on the starting row; verified by `npm run check` and `npm run build`. |
+| Conflict indicator and panel | Implemented | Conflict resolver is an overlay panel outside table layout, shows current candidate plus alternatives, and no longer resets the review scroll position on resolve; covered by `ConflictResolver.test.ts`. |
 | `tags::set_user_tag` command | Implemented | Typed `set_user_tag` command and generated `commands.setUserTag`; covered by `test_user_tag_write_and_clear_preserves_auto_tags`. |
 | `tags::clear_user_tag` command | Implemented | Typed `clear_user_tag` command and generated `commands.clearUserTag`; covered by `test_user_tag_write_and_clear_preserves_auto_tags`. |
 | Conflict query tests | Implemented | `test_conflict_query_returns_unresolved_auto_tag_conflicts`. |
@@ -102,12 +102,12 @@ Goal: ML-based Type and Instrument classification runs as part of analysis.
 
 | Feature | Status | Notes / Verification |
 |---|---|---|
-| Loop/one-shot classifier | Not started | Essentia integration planned. |
-| Instrument classifier | Not started | PANNs CNN14 mapping planned. |
-| AudioSet mapping config | Not started | Planned `audioset_map.json`. |
-| Waveform generation | Not started | Compact amplitude array for playback UI. |
-| Waveform DB migration | Deferred | `waveform_data` already exists in `001_init.sql`; verify whether migration 003 remains needed. |
-| ML mapping unit tests | Not started | Mock model output only. |
+| Loop/one-shot classifier | In progress | Typed model-output mapping exists behind an optional `LoopDetector` protocol; real Essentia backend still pending. |
+| Instrument classifier | In progress | Typed model-output mapping exists behind an optional `InstrumentModel` protocol; real PANNs CNN14 backend still pending. |
+| AudioSet mapping config | Implemented | `analyzer/sonoscope_analyzer/mappings/audioset_map.json` maps model labels to seeded Sonoscope dimensions. |
+| Waveform generation | Implemented | Analyzer emits byte-scaled peak amplitude bins; Rust persists them to `samples.waveform_data`. Covered by `test_waveform.py`. |
+| Waveform DB migration | Deferred | `waveform_data` already exists in `001_init.sql`; no new migration required. |
+| ML mapping unit tests | Implemented | `analyzer/tests/test_classifier.py` validates mocked model output mapping without loading models. |
 | Integration fixture suite | Not started | Mark with `@pytest.mark.integration`. |
 | End-to-end analysis verification | Not started | Scan fixture library and compare DB tags to manifest. |
 
@@ -117,12 +117,12 @@ Goal: user can play samples in-app with waveform display.
 
 | Feature | Status | Notes / Verification |
 |---|---|---|
-| Playback footer UI | Not started | Play/pause, waveform, seek, timestamp, volume. |
-| Row double-click playback | Not started | Loads selected sample. |
-| Keyboard playback controls | Not started | Space and row navigation. |
-| Local audio asset protocol | Not started | Tauri serving for local audio files. |
+| Playback footer UI | In progress | Play/pause, loop toggle, seek, timestamp, volume, mute, and selected-sample loading exist in `PlaybackFooter.svelte`; waveform drawing still pending. Loop defaults on when the primary Type tag is `loop`, and playback uses Web Audio buffer looping to avoid native media element loop gaps. |
+| Row double-click playback | Implemented | Double-clicking a non-interactive review row loads and autoplays the sample. |
+| Keyboard playback controls | In progress | Space toggles play/pause when focus is not inside an input/control; row navigation still pending. |
+| Local audio asset protocol | Implemented | `get_sample_playback` validates the sample path against the opened library and the UI loads it via Tauri `convertFileSrc`; asset protocol enabled in `tauri.conf.json`. |
 | Waveform rendering component | Not started | Draws cached waveform data. |
-| Playback store tests | Not started | Vitest required. |
+| Playback store tests | Implemented | `src/lib/stores/playback.test.ts`; verified by `npm run test`. |
 
 ## Phase 7 — Organise + History
 

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT 1 as \"exists!: i64\"\n         FROM tags t\n         JOIN dimensions d ON d.id = t.dimension_id\n         JOIN dimension_values dv ON dv.id = t.value_id\n         WHERE t.sample_id = ?\n           AND t.is_primary = 1\n           AND d.name = 'Type'\n           AND dv.value = 'loop'\n         LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists!: i64",
+        "ordinal": 0,
+        "type_info": "Null"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7c6f79b2afa585b4cfbc18825626faed1425894beffd8d32b0746263ddad4ad1"
+}

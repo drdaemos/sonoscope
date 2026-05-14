@@ -30,6 +30,7 @@
     recentLibraries,
     rememberLibrary,
     samples,
+    tagDimensions,
   } from "$lib/stores/library";
 
   export type AppView = "review" | "organise" | "history";
@@ -91,19 +92,29 @@
 
     currentLibrary.set(result.data);
     samples.set([]);
+    tagDimensions.set([]);
     discoveryCount.set(0);
     analysisProcessed.set(0);
     analysisTotal.set(0);
     rememberLibrary(result.data.root_path);
 
-    const samplesResult = await commands.getSamples();
+    const [samplesResult, dimensionsResult] = await Promise.all([
+      commands.getSamples(),
+      commands.listTagDimensions(),
+    ]);
     if (samplesResult.status === "error") {
       console.error("Failed to load samples:", samplesResult.error);
       openError = formatCommandError(samplesResult.error);
       return;
     }
+    if (dimensionsResult.status === "error") {
+      console.error("Failed to load tag dimensions:", dimensionsResult.error);
+      openError = formatCommandError(dimensionsResult.error);
+      return;
+    }
 
     samples.set(samplesResult.data);
+    tagDimensions.set(dimensionsResult.data);
   }
 
   async function startScanAndAnalysis() {

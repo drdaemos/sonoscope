@@ -299,6 +299,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "mutagen" },
+    { name = "numpy" },
     { name = "pydantic" },
     { name = "soundfile" },
 ]
@@ -314,6 +315,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mutagen", specifier = ">=1.47.0" },
+    { name = "numpy", specifier = ">=2.0.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "soundfile", specifier = ">=0.13.1" },
 ]

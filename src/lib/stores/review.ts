@@ -1,7 +1,7 @@
 import { derived, writable } from "svelte/store";
-import { samples, type SampleRow, type SampleTag } from "$lib/stores/library";
+import { samples, tagDimensions, type SampleRow, type SampleTag } from "$lib/stores/library";
 
-export type SortKey = "filename" | "relative_path" | "type" | "instrument";
+export type SortKey = "filename" | "relative_path" | `dimension:${string}`;
 export type SortDirection = "asc" | "desc";
 export type DimensionFilter = Record<string, string[]>;
 
@@ -12,6 +12,35 @@ export const unanalysedOnly = writable(false);
 export const selectedSampleIds = writable<Set<number>>(new Set());
 export const sortKey = writable<SortKey>("relative_path");
 export const sortDirection = writable<SortDirection>("asc");
+
+export const reviewViewportKey = derived(
+  [
+    filenameSearch,
+    dimensionFilters,
+    conflictsOnly,
+    unanalysedOnly,
+    sortKey,
+    sortDirection,
+  ],
+  ([
+    $filenameSearch,
+    $dimensionFilters,
+    $conflictsOnly,
+    $unanalysedOnly,
+    $sortKey,
+    $sortDirection,
+  ]) =>
+    JSON.stringify({
+      filenameSearch: $filenameSearch,
+      dimensionFilters: Object.entries($dimensionFilters)
+        .map(([dimension, values]) => [dimension, [...values].sort()] as const)
+        .sort(([left], [right]) => left.localeCompare(right)),
+      conflictsOnly: $conflictsOnly,
+      unanalysedOnly: $unanalysedOnly,
+      sortKey: $sortKey,
+      sortDirection: $sortDirection,
+    }),
+);
 
 export const visibleSamples = derived(
   [
@@ -59,11 +88,16 @@ export const visibleSamples = derived(
   },
 );
 
-export const filterOptions = derived(samples, ($samples) => {
+export const filterOptions = derived([samples, tagDimensions], ([$samples, $tagDimensions]) => {
+  const filterableDimensions = new Set(
+    $tagDimensions
+      .filter((dimension) => ["enum", "multi_enum"].includes(dimension.value_type))
+      .map((dimension) => dimension.name),
+  );
   const options = new Map<string, Map<string, number>>();
   for (const sample of $samples) {
     for (const tag of sample.tags) {
-      if (!["Type", "Instrument", "Key"].includes(tag.dimension)) continue;
+      if (filterableDimensions.size > 0 && !filterableDimensions.has(tag.dimension)) continue;
       const dimensionOptions = options.get(tag.dimension) ?? new Map<string, number>();
       dimensionOptions.set(tag.value, (dimensionOptions.get(tag.value) ?? 0) + 1);
       options.set(tag.dimension, dimensionOptions);
@@ -129,6 +163,10 @@ export function setSort(nextKey: SortKey) {
   });
 }
 
+export function dimensionSortKey(dimension: string): SortKey {
+  return `dimension:${dimension}`;
+}
+
 export function toggleSelection(sampleId: number, additive: boolean) {
   selectedSampleIds.update((selected) => {
     const next = additive ? new Set(selected) : new Set<number>();
@@ -141,18 +179,32 @@ export function toggleSelection(sampleId: number, additive: boolean) {
   });
 }
 
+export function setSelectionState(sampleId: number, selected: boolean) {
+  selectedSampleIds.update((current) => {
+    if (current.has(sampleId) === selected) return current;
+
+    const next = new Set(current);
+    if (selected) {
+      next.add(sampleId);
+    } else {
+      next.delete(sampleId);
+    }
+    return next;
+  });
+}
+
 export function clearSelection() {
   selectedSampleIds.set(new Set());
 }
 
 function sortValue(sample: SampleRow, key: SortKey): string {
+  if (key.startsWith("dimension:")) {
+    return displayTagValues(sample, key.slice("dimension:".length)).join(", ");
+  }
+
   switch (key) {
     case "filename":
       return sample.filename;
-    case "type":
-      return displayTagValues(sample, "Type").join(", ");
-    case "instrument":
-      return displayTagValues(sample, "Instrument").join(", ");
     case "relative_path":
     default:
       return sample.relative_path;

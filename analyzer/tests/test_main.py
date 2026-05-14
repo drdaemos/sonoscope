@@ -22,6 +22,7 @@ def test_process_request_combines_metadata_and_heuristics(tmp_path) -> None:
     assert response.status == "ok"
     assert response.file_meta is not None
     assert response.file_meta.format == "wav"
+    assert response.waveform_data is None
     assert {("Instrument", "kick"), ("Type", "loop"), ("Tempo", "120")} <= {
         (tag.dimension, tag.value) for tag in response.tags
     }

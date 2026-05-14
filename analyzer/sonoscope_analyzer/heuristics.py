@@ -1,4 +1,4 @@
-"""Filename and path heuristic analysis."""
+"""Filename heuristic analysis."""
 
 from __future__ import annotations
 
@@ -37,35 +37,40 @@ KEY_ALIASES = {
     "ab": "G#",
     "bb": "A#",
 }
+DEFAULT_ONE_SHOT_CONFIDENCE = 0.05
 
 
 def analyze_path(relative_path: str) -> list[TagCandidate]:
-    """Return heuristic tag candidates for a sample path."""
-    normalized_path = normalize_path(relative_path)
-    tokens = tokenize(normalized_path)
+    """Return heuristic tag candidates for a sample filename."""
+    filename = PurePath(relative_path).name
+    normalized_filename = normalize_path(filename)
+    tokens = tokenize(normalized_filename)
     candidates: dict[tuple[str, str, str], TagCandidate] = {}
 
     for rule in load_token_rules("type"):
-        if rule_matches(rule, normalized_path, tokens):
+        if rule_matches(rule, normalized_filename, tokens):
             add_candidate(candidates, "Type", rule.value, rule.confidence)
 
-    if TEMPO_RE.search(relative_path):
+    if TEMPO_RE.search(filename):
         add_candidate(candidates, "Type", "loop", 0.7)
 
     for rule in load_token_rules("instrument"):
-        if rule_matches(rule, normalized_path, tokens):
+        if rule_matches(rule, normalized_filename, tokens):
             add_candidate(candidates, "Instrument", rule.value, rule.confidence)
 
-    if (tempo_match := TEMPO_RE.search(relative_path)) is not None:
+    if (tempo_match := TEMPO_RE.search(filename)) is not None:
         add_candidate(candidates, "Tempo", tempo_match.group(1), 0.95)
-    elif (inline_match := INLINE_TEMPO_RE.search(relative_path)) is not None:
+    elif (inline_match := INLINE_TEMPO_RE.search(filename)) is not None:
         add_candidate(candidates, "Tempo", inline_match.group(1), 0.7)
 
-    key_match = KEY_RE.search(relative_path)
+    key_match = KEY_RE.search(filename)
     if key_match is not None:
         note = normalize_key(key_match.group(1), key_match.group(2))
         confidence = 0.85 if key_match.group(3) else 0.65
         add_candidate(candidates, "Key", note, confidence)
+
+    if not has_candidate_for_dimension(candidates, "Type"):
+        add_candidate(candidates, "Type", "one-shot", DEFAULT_ONE_SHOT_CONFIDENCE)
 
     return list(candidates.values())
 
@@ -114,6 +119,13 @@ def add_candidate(
             source="heuristic",
             confidence=confidence,
         )
+
+
+def has_candidate_for_dimension(
+    candidates: dict[tuple[str, str, str], TagCandidate],
+    dimension: str,
+) -> bool:
+    return any(candidate.dimension == dimension for candidate in candidates.values())
 
 
 @lru_cache(maxsize=1)

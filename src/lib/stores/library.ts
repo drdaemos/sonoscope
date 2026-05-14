@@ -1,7 +1,13 @@
 import { writable } from "svelte/store";
-import type { AnalysisStatus, LibraryMeta, SampleRow, SampleTag } from "$lib/bindings/bindings";
+import type {
+  AnalysisStatus,
+  LibraryMeta,
+  SampleRow,
+  SampleTag,
+  TagDimension,
+} from "$lib/bindings/bindings";
 
-export type { AnalysisStatus, LibraryMeta, SampleRow, SampleTag };
+export type { AnalysisStatus, LibraryMeta, SampleRow, SampleTag, TagDimension };
 
 export type RecentLibrary = {
   path: string;
@@ -13,6 +19,7 @@ const RECENT_LIBRARIES_KEY = "sonoscope.recentLibraries";
 
 export const currentLibrary = writable<LibraryMeta | null>(null);
 export const samples = writable<SampleRow[]>([]);
+export const tagDimensions = writable<TagDimension[]>([]);
 export const discoveryCount = writable<number>(0);
 export const isDiscovering = writable<boolean>(false);
 export const analysisProcessed = writable<number>(0);

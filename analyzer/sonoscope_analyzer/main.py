@@ -3,15 +3,24 @@
 import json
 import sys
 
+from sonoscope_analyzer.classifier import classify_audio
 from sonoscope_analyzer.heuristics import analyze_path
 from sonoscope_analyzer.metadata import extract_metadata
 from sonoscope_analyzer.protocol import AnalyzeRequest, AnalyzeResponse
+from sonoscope_analyzer.waveform import generate_waveform
 
 
 def process_request(request: AnalyzeRequest) -> AnalyzeResponse:
     file_meta, metadata_tags = extract_metadata(request.path)
-    tags = [*metadata_tags, *analyze_path(request.relative_path)]
-    return AnalyzeResponse(id=request.id, status="ok", tags=tags, file_meta=file_meta)
+    tags = [*metadata_tags, *analyze_path(request.relative_path), *classify_audio(request.path)]
+    waveform_data = generate_waveform(request.path)
+    return AnalyzeResponse(
+        id=request.id,
+        status="ok",
+        tags=tags,
+        file_meta=file_meta,
+        waveform_data=waveform_data,
+    )
 
 
 def main() -> None:

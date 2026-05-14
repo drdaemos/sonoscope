@@ -1,17 +1,20 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { get } from "svelte/store";
-import { samples } from "$lib/stores/library";
+import { samples, tagDimensions } from "$lib/stores/library";
 import {
   clearFilters,
   clearSelection,
   conflictsOnly,
   dimensionFilters,
+  dimensionSortKey,
   displayTags,
   displayTagValues,
   filenameSearch,
   filterOptions,
   hasConflict,
+  reviewViewportKey,
   selectedSampleIds,
+  setSelectionState,
   setSort,
   sortDirection,
   sortKey,
@@ -26,6 +29,11 @@ import { makeConflict, makeSample, makeTag, resetIdCounter } from "../../test/fi
 beforeEach(() => {
   resetIdCounter();
   samples.set([]);
+  tagDimensions.set([
+    { name: "Type", value_type: "enum", values: ["loop", "one-shot"] },
+    { name: "Instrument", value_type: "multi_enum", values: ["kick", "snare"] },
+    { name: "Key", value_type: "enum", values: ["A", "C"] },
+  ]);
   clearFilters();
   clearSelection();
   sortKey.set("relative_path");
@@ -139,9 +147,10 @@ describe("visibleSamples sorting", () => {
     setSort("filename"); // now desc
     expect(get(sortDirection)).toBe("desc");
 
-    setSort("type"); // new key → resets to asc
+    const typeSortKey = dimensionSortKey("Type");
+    setSort(typeSortKey); // new key resets to asc
     expect(get(sortDirection)).toBe("asc");
-    expect(get(sortKey)).toBe("type");
+    expect(get(sortKey)).toBe(typeSortKey);
   });
 
   it("sorts by type using tag values", () => {
@@ -157,7 +166,7 @@ describe("visibleSamples sorting", () => {
         tags: [makeTag({ dimension: "Type", value: "loop" })],
       }),
     ]);
-    setSort("type");
+    setSort(dimensionSortKey("Type"));
     const result = get(visibleSamples).map((s) => s.filename);
     expect(result).toEqual(["b.wav", "a.wav"]);
   });
@@ -221,6 +230,20 @@ describe("clearFilters", () => {
   });
 });
 
+describe("reviewViewportKey", () => {
+  it("changes for review view controls", () => {
+    const initialKey = get(reviewViewportKey);
+    filenameSearch.set("kick");
+    expect(get(reviewViewportKey)).not.toBe(initialKey);
+  });
+
+  it("does not change when sample data refreshes without changing review controls", () => {
+    const initialKey = get(reviewViewportKey);
+    samples.set([makeSample({ filename: "updated.wav" })]);
+    expect(get(reviewViewportKey)).toBe(initialKey);
+  });
+});
+
 describe("selection", () => {
   it("non-additive toggleSelection always results in single item", () => {
     toggleSelection(1, false);
@@ -255,6 +278,19 @@ describe("selection", () => {
     toggleSelection(2, true);
     clearSelection();
     expect(get(selectedSampleIds).size).toBe(0);
+  });
+
+  it("setSelectionState selects and deselects without toggling unrelated rows", () => {
+    setSelectionState(1, true);
+    setSelectionState(2, true);
+    setSelectionState(1, true);
+
+    expect([...get(selectedSampleIds)].sort()).toEqual([1, 2]);
+
+    setSelectionState(1, false);
+    setSelectionState(3, false);
+
+    expect([...get(selectedSampleIds)]).toEqual([2]);
   });
 });
 

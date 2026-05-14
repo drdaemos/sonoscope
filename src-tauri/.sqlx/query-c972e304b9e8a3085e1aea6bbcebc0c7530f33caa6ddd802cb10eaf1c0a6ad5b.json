@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: i64\", filename, path, duration_ms, waveform_data\n         FROM samples\n         WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "filename",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "path",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "waveform_data",
+        "ordinal": 4,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "c972e304b9e8a3085e1aea6bbcebc0c7530f33caa6ddd802cb10eaf1c0a6ad5b"
+}

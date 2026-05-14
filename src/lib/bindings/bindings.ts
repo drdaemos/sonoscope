@@ -11,8 +11,10 @@ export const commands = {
 	cancelDiscovery: () => typedError<null, CommandError>(__TAURI_INVOKE("cancel_discovery")),
 	startAnalysis: (reanalyze: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("start_analysis", { reanalyze })),
 	getSamples: () => typedError<SampleRow[], CommandError>(__TAURI_INVOKE("get_samples")),
+	listTagDimensions: () => typedError<TagDimension[], CommandError>(__TAURI_INVOKE("list_tag_dimensions")),
 	setUserTag: (sampleId: number, dimension: string, value: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_user_tag", { sampleId, dimension, value })),
 	clearUserTag: (sampleId: number, dimension: string) => typedError<null, CommandError>(__TAURI_INVOKE("clear_user_tag", { sampleId, dimension })),
+	getSamplePlayback: (sampleId: number) => typedError<PlaybackSample, CommandError>(__TAURI_INVOKE("get_sample_playback", { sampleId })),
 };
 
 /* Types */
@@ -22,10 +24,21 @@ export type CommandError = ({ Database: string }) & { Analysis?: never; Discover
 	count: number,
 } }) & { Analysis?: never; Database?: never; Io?: never; Other?: never } | ({ Other: string }) & { Analysis?: never; Database?: never; DiscoveryCancelled?: never; Io?: never };
 
+export type DimensionValueType = "enum" | "multi_enum" | "numeric" | "text";
+
 export type LibraryMeta = {
 	root_path: string,
 	created_at: number,
 	last_discovered_at: number | null,
+};
+
+export type PlaybackSample = {
+	id: number,
+	filename: string,
+	path: string,
+	duration_ms: number | null,
+	waveform_data: number[] | null,
+	is_loop: boolean,
 };
 
 export type SampleRow = {
@@ -34,6 +47,7 @@ export type SampleRow = {
 	relative_path: string,
 	format: string | null,
 	size_bytes: number | null,
+	duration_ms: number | null,
 	analysis_status: AnalysisStatus,
 	tags: SampleTag[],
 	conflicts: TagConflict[],
@@ -50,6 +64,12 @@ export type SampleTag = {
 export type TagConflict = {
 	dimension: string,
 	candidates: SampleTag[],
+};
+
+export type TagDimension = {
+	name: string,
+	value_type: DimensionValueType,
+	values: string[],
 };
 
 export type TagSource = "heuristic" | "metadata" | "model" | "user";

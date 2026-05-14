@@ -1,0 +1,21 @@
+{
+  "Bass drum": { "dimension": "Instrument", "value": "kick", "min_confidence": 0.35 },
+  "Snare drum": { "dimension": "Instrument", "value": "snare", "min_confidence": 0.35 },
+  "Hi-hat": { "dimension": "Instrument", "value": "hi-hat", "min_confidence": 0.35 },
+  "Clapping": { "dimension": "Instrument", "value": "clap", "min_confidence": 0.35 },
+  "Cymbal": { "dimension": "Instrument", "value": "cymbal", "min_confidence": 0.35 },
+  "Drum": { "dimension": "Instrument", "value": "percussion", "min_confidence": 0.35 },
+  "Percussion": { "dimension": "Instrument", "value": "percussion", "min_confidence": 0.35 },
+  "Bass guitar": { "dimension": "Instrument", "value": "bass", "min_confidence": 0.35 },
+  "Electric guitar": { "dimension": "Instrument", "value": "guitar", "min_confidence": 0.35 },
+  "Acoustic guitar": { "dimension": "Instrument", "value": "guitar", "min_confidence": 0.35 },
+  "Piano": { "dimension": "Instrument", "value": "piano", "min_confidence": 0.35 },
+  "Organ": { "dimension": "Instrument", "value": "piano", "min_confidence": 0.35 },
+  "Brass instrument": { "dimension": "Instrument", "value": "brass", "min_confidence": 0.35 },
+  "Saxophone": { "dimension": "Instrument", "value": "woodwind", "min_confidence": 0.35 },
+  "Flute": { "dimension": "Instrument", "value": "woodwind", "min_confidence": 0.35 },
+  "String section": { "dimension": "Instrument", "value": "strings", "min_confidence": 0.35 },
+  "Synthesizer": { "dimension": "Instrument", "value": "synth", "min_confidence": 0.35 },
+  "Singing": { "dimension": "Instrument", "value": "vocal", "min_confidence": 0.35 },
+  "Speech": { "dimension": "Instrument", "value": "vocal", "min_confidence": 0.45 }
+}
