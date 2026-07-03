@@ -1,10 +1,11 @@
 import { writable } from "svelte/store";
-import type {
-  AnalysisStatus,
-  LibraryMeta,
-  SampleRow,
-  SampleTag,
-  TagDimension,
+import {
+  commands,
+  type AnalysisStatus,
+  type LibraryMeta,
+  type SampleRow,
+  type SampleTag,
+  type TagDimension,
 } from "$lib/bindings/bindings";
 
 export type { AnalysisStatus, LibraryMeta, SampleRow, SampleTag, TagDimension };
@@ -26,6 +27,24 @@ export const analysisProcessed = writable<number>(0);
 export const analysisTotal = writable<number>(0);
 export const isAnalyzing = writable<boolean>(false);
 export const recentLibraries = writable<RecentLibrary[]>(loadRecentLibraries());
+
+/// Replace one sample in the store without reloading the whole library.
+export function updateSample(updated: SampleRow): void {
+  samples.update((items) =>
+    items.map((sample) => (sample.id === updated.id ? updated : sample)),
+  );
+}
+
+/// Reload a single sample after a tag edit. Returns the error string on
+/// failure so callers can surface it.
+export async function refreshSample(sampleId: number): Promise<string | null> {
+  const result = await commands.getSample(sampleId);
+  if (result.status === "error") {
+    return typeof result.error === "string" ? result.error : JSON.stringify(result.error);
+  }
+  updateSample(result.data);
+  return null;
+}
 
 export function libraryDisplayName(rootPath: string): string {
   const normalized = rootPath.replaceAll("\\", "/").replace(/\/$/, "");

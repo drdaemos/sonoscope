@@ -3,7 +3,9 @@ pub mod commands;
 pub mod db;
 pub mod error;
 pub mod library;
+pub mod models;
 mod state;
+pub mod tags;
 
 use state::AppState;
 use std::path::PathBuf;
@@ -18,11 +20,17 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::start_discovery,
         commands::cancel_discovery,
         commands::start_analysis,
+        commands::cancel_analysis,
         commands::get_samples,
+        commands::get_sample,
         commands::list_tag_dimensions,
         commands::set_user_tag,
+        commands::set_user_tag_bulk,
         commands::clear_user_tag,
+        commands::clear_user_tag_bulk,
         commands::get_sample_playback,
+        commands::get_ml_model_status,
+        commands::download_ml_model,
     ])
 }
 

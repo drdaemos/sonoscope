@@ -12,7 +12,7 @@
   } from "$lib/stores/review";
   import { currentLibrary } from "$lib/stores/library";
 
-  const dimensions = ["Type", "Instrument", "Key"];
+  const dimensions = ["Type", "Instrument", "Key", "Mode"];
 </script>
 
 <aside class="flex w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">

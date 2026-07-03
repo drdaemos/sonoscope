@@ -38,4 +38,5 @@ def test_extract_tag_candidates_from_flac(tmp_path) -> None:
     assert file_meta.sample_rate == 44100
     assert ("Tempo", "128", "metadata") in tag_pairs
     assert ("Key", "A#", "metadata") in tag_pairs
+    assert ("Mode", "minor", "metadata") in tag_pairs
     assert ("Instrument", "vocal", "metadata") in tag_pairs

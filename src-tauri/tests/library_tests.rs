@@ -52,6 +52,7 @@ async fn test_open_seeds_system_tag_dimensions() {
             ("Type".to_string(), "enum".to_string()),
             ("Instrument".to_string(), "multi_enum".to_string()),
             ("Key".to_string(), "enum".to_string()),
+            ("Mode".to_string(), "enum".to_string()),
             ("Tempo".to_string(), "numeric".to_string()),
             ("Mood".to_string(), "multi_enum".to_string()),
         ]
@@ -91,6 +92,24 @@ async fn test_tag_dimensions_lists_seeded_values() {
     );
     assert!(type_dimension.values.contains(&"loop".to_string()));
     assert!(type_dimension.values.contains(&"one-shot".to_string()));
+    assert!(!type_dimension.values.contains(&"top-loop".to_string()));
+
+    let mode_dimension = dimensions
+        .iter()
+        .find(|dimension| dimension.name == "Mode")
+        .expect("Mode dimension should be present");
+    assert_eq!(
+        mode_dimension.value_type,
+        sonoscope_lib::error::DimensionValueType::Enum
+    );
+    assert!(mode_dimension.values.contains(&"major".to_string()));
+    assert!(mode_dimension.values.contains(&"minor".to_string()));
+
+    let instrument_dimension = dimensions
+        .iter()
+        .find(|dimension| dimension.name == "Instrument")
+        .expect("Instrument dimension should be present");
+    assert!(instrument_dimension.values.contains(&"tops".to_string()));
 
     let tempo_dimension = dimensions
         .iter()
@@ -554,4 +573,75 @@ async fn test_playback_sample_rejects_paths_outside_library_root() {
         Err(sonoscope_lib::error::CommandError::Other(message))
             if message == "Sample is outside the opened library"
     ));
+}
+
+#[tokio::test]
+async fn test_sample_rows_returns_tags_and_conflicts_in_bulk() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("loop.wav"), b"fake").unwrap();
+    fs::write(dir.path().join("kick.wav"), b"fake").unwrap();
+
+    let pool = make_pool(&dir).await;
+    sonoscope_lib::library::open::open_or_create_library(dir.path().to_str().unwrap(), &pool)
+        .await
+        .unwrap();
+    sonoscope_lib::library::discover::run_discovery(dir.path(), &pool, |_| {})
+        .await
+        .unwrap();
+
+    let (conflicted_id,): (i64,) =
+        sqlx::query_as("SELECT id FROM samples WHERE filename = 'loop.wav'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let (loop_value_id,): (i64,) =
+        sqlx::query_as("SELECT id FROM dimension_values WHERE dimension_id = 1 AND value = 'loop'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let (one_shot_value_id,): (i64,) = sqlx::query_as(
+        "SELECT id FROM dimension_values WHERE dimension_id = 1 AND value = 'one-shot'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO tags
+         (sample_id, dimension_id, value_id, source, confidence, created_at, is_primary)
+         VALUES (?, 1, ?, 'heuristic', 0.8, 1, 1), (?, 1, ?, 'model', 0.7, 1, 0)",
+    )
+    .bind(conflicted_id)
+    .bind(loop_value_id)
+    .bind(conflicted_id)
+    .bind(one_shot_value_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let rows = sonoscope_lib::commands::sample_rows(&pool).await.unwrap();
+    assert_eq!(rows.len(), 2);
+
+    let conflicted = rows
+        .iter()
+        .find(|row| row.id == conflicted_id)
+        .expect("conflicted sample present");
+    assert_eq!(conflicted.tags.len(), 2);
+    assert!(conflicted.tags[0].is_primary, "primary tag ordered first");
+    assert_eq!(conflicted.conflicts.len(), 1);
+    assert_eq!(conflicted.conflicts[0].dimension, "Type");
+    assert_eq!(conflicted.conflicts[0].candidates.len(), 2);
+
+    let clean = rows
+        .iter()
+        .find(|row| row.id != conflicted_id)
+        .expect("clean sample present");
+    assert!(clean.tags.is_empty());
+    assert!(clean.conflicts.is_empty());
+
+    // Bulk and single-sample paths must agree.
+    let single = sonoscope_lib::commands::conflicts_for_sample(&pool, conflicted_id)
+        .await
+        .unwrap();
+    assert_eq!(single.len(), 1);
+    assert_eq!(single[0].candidates.len(), 2);
 }

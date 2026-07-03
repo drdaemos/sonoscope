@@ -103,9 +103,10 @@ pub async fn run_discovery_cancellable(
         let status = AnalysisStatus::Pending;
 
         sqlx::query!(
-            "INSERT OR IGNORE INTO samples
+            "INSERT INTO samples
              (path, filename, relative_path, format, size_bytes, analysis_status, discovered_at, last_seen_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(path) DO UPDATE SET last_seen_at = excluded.last_seen_at",
             abs_path,
             filename,
             relative_path,
@@ -114,14 +115,6 @@ pub async fn run_discovery_cancellable(
             status,
             now,
             now,
-        )
-        .execute(&mut *tx)
-        .await?;
-
-        sqlx::query!(
-            "UPDATE samples SET last_seen_at = ? WHERE path = ?",
-            now,
-            abs_path,
         )
         .execute(&mut *tx)
         .await?;

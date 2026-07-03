@@ -26,6 +26,10 @@ class AnalyzeRequest(BaseModel):
     relative_path: str
 
 
+class AnalyzeBatchRequest(BaseModel):
+    requests: list[AnalyzeRequest] = Field(min_length=1)
+
+
 class AnalyzeResponse(BaseModel):
     id: str
     status: Literal["ok", "error"] = "ok"
@@ -33,3 +37,7 @@ class AnalyzeResponse(BaseModel):
     file_meta: FileMeta | None = None
     waveform_data: list[int] | None = None
     error: str | None = None
+
+
+class AnalyzeBatchResponse(BaseModel):
+    responses: list[AnalyzeResponse] = Field(default_factory=list)

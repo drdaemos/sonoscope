@@ -1,8 +1,8 @@
 <script lang="ts">
   import { Select as SelectPrimitive } from "bits-ui";
-  import { AlertTriangle, FileAudio, Pencil, X } from "@lucide/svelte";
+  import { AlertTriangle, FileAudio, Info, Pencil, X } from "@lucide/svelte";
   import { commands } from "$lib/bindings/bindings";
-  import ConflictResolver from "$lib/components/ConflictResolver.svelte";
+  import SampleDetailsDialog from "$lib/components/SampleDetailsDialog.svelte";
   import TagValueEditor from "$lib/components/TagValueEditor.svelte";
   import {
     Badge,
@@ -14,7 +14,14 @@
     SelectItem,
     SelectTrigger,
   } from "$lib/components/ui";
-  import { currentLibrary, samples, tagDimensions, type SampleRow, type TagDimension } from "$lib/stores/library";
+  import {
+    currentLibrary,
+    refreshSample,
+    samples,
+    tagDimensions,
+    type SampleRow,
+    type TagDimension,
+  } from "$lib/stores/library";
   import { loadPlaybackSample } from "$lib/stores/playback";
   import {
     clearSelection,
@@ -35,7 +42,7 @@
 
   const ROW_HEIGHT = 44;
   const INTERACTIVE_ROW_SELECTOR = "button, a, input, [role='button'], [data-row-action]";
-  const REVIEW_COLUMN_DIMENSIONS = ["Type", "Instrument", "Key"];
+  const REVIEW_COLUMN_DIMENSIONS = ["Type", "Instrument", "Key", "Mode"];
   const VIRTUAL_OVERSCAN = 12;
   type DragSelectionMode = "select" | "deselect";
   type PendingDragSelection = {
@@ -52,49 +59,11 @@
     start: number;
   };
 
-  const fallbackTagDimensions: TagDimension[] = [
-    {
-      name: "Type",
-      value_type: "enum",
-      values: ["break", "fill", "loop", "one-shot", "texture", "top-loop"],
-    },
-    {
-      name: "Instrument",
-      value_type: "multi_enum",
-      values: [
-        "bass",
-        "brass",
-        "chord",
-        "clap",
-        "cymbal",
-        "foley",
-        "fx",
-        "guitar",
-        "hi-hat",
-        "kick",
-        "lead",
-        "pad",
-        "percussion",
-        "piano",
-        "snare",
-        "strings",
-        "synth",
-        "vocal",
-        "woodwind",
-      ],
-    },
-    {
-      name: "Key",
-      value_type: "enum",
-      values: ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"],
-    },
-    { name: "Tempo", value_type: "numeric", values: [] },
-  ];
-
   let editing = $state<{ sampleId: number; dimension: string; value: string } | null>(null);
+  let tagError = $state<string | null>(null);
   let bulkDimension = $state("Type");
   let bulkValue = $state("loop");
-  let expandedConflictSampleId = $state<number | null>(null);
+  let detailsSampleId = $state<number | null>(null);
   let scrollContainerRef = $state<HTMLDivElement | null>(null);
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
@@ -102,23 +71,19 @@
   let pendingDragSelection = $state<PendingDragSelection | null>(null);
   let suppressNextRowClick = $state(false);
   let selectedCount = $derived($selectedSampleIds.size);
-  let effectiveTagDimensions = $derived(
-    $tagDimensions.length > 0 ? $tagDimensions : fallbackTagDimensions,
-  );
-  let editableTagDimensions = $derived(effectiveTagDimensions.filter(isEditableDimension));
+  let editableTagDimensions = $derived($tagDimensions.filter(isEditableDimension));
   let columnTagDimensions = $derived(
     REVIEW_COLUMN_DIMENSIONS.map((name) => dimensionByName(name)).filter(isPresent),
   );
   let bulkTagDimension = $derived(dimensionByName(bulkDimension));
-  let expandedConflictSample = $derived(
-    $visibleSamples.find((sample) => sample.id === expandedConflictSampleId) ?? null,
+  let detailsSample = $derived(
+    $samples.find((sample) => sample.id === detailsSampleId) ?? null,
   );
   let gridTemplateColumns = $derived(
     [
       "2.25rem",
       "minmax(10rem,1fr)",
       ...columnTagDimensions.map((dimension) => columnWidth(dimension.name)),
-      "4.5rem",
       "5.5rem",
     ].join(" "),
   );
@@ -166,7 +131,6 @@
     const key = $reviewViewportKey;
     const el = scrollContainerRef;
     if (lastViewportKey !== null && key !== lastViewportKey) {
-      expandedConflictSampleId = null;
       editing = null;
       scrollTop = 0;
       el?.scrollTo({ top: 0, left: 0 });
@@ -234,7 +198,7 @@
   }
 
   function dimensionByName(name: string): TagDimension | undefined {
-    return effectiveTagDimensions.find((dimension) => dimension.name === name);
+    return $tagDimensions.find((dimension) => dimension.name === name);
   }
 
   function defaultValueForDimension(dimension: TagDimension): string {
@@ -245,6 +209,7 @@
   function columnWidth(dimension: string): string {
     if (dimension === "Instrument") return "10rem";
     if (dimension === "Key") return "5rem";
+    if (dimension === "Mode") return "6rem";
     return "7rem";
   }
 
@@ -256,36 +221,43 @@
     };
   }
 
+  function formatTagError(error: unknown): string {
+    return typeof error === "string" ? error : JSON.stringify(error);
+  }
+
   async function saveEditing() {
     if (!editing) return;
+    tagError = null;
     const result = await commands.setUserTag(editing.sampleId, editing.dimension, editing.value);
     if (result.status === "error") {
       console.error("Failed to set tag:", result.error);
+      tagError = `Failed to set tag: ${formatTagError(result.error)}`;
       return;
     }
-    await refreshSamples();
+    tagError = await refreshSample(editing.sampleId);
     editing = null;
   }
 
   async function clearEditing() {
     if (!editing) return;
+    tagError = null;
     const result = await commands.clearUserTag(editing.sampleId, editing.dimension);
     if (result.status === "error") {
       console.error("Failed to clear tag:", result.error);
+      tagError = `Failed to clear tag: ${formatTagError(result.error)}`;
       return;
     }
-    await refreshSamples();
+    tagError = await refreshSample(editing.sampleId);
     editing = null;
   }
 
   async function applyBulkTag() {
     if (!bulkTagDimension || bulkValue.trim().length === 0) return;
-    const sampleIds = [...$selectedSampleIds];
-    for (const sampleId of sampleIds) {
-      const result = await commands.setUserTag(sampleId, bulkDimension, bulkValue);
-      if (result.status === "error") {
-        console.error("Failed to set bulk tag:", result.error);
-      }
+    tagError = null;
+    const result = await commands.setUserTagBulk([...$selectedSampleIds], bulkDimension, bulkValue);
+    if (result.status === "error") {
+      console.error("Failed to set bulk tag:", result.error);
+      tagError = `Failed to set tags: ${formatTagError(result.error)}`;
     }
     await refreshSamples();
     clearSelection();
@@ -293,29 +265,29 @@
 
   async function clearBulkTag() {
     if (!bulkTagDimension) return;
-    const sampleIds = [...$selectedSampleIds];
-    for (const sampleId of sampleIds) {
-      const result = await commands.clearUserTag(sampleId, bulkDimension);
-      if (result.status === "error") {
-        console.error("Failed to clear bulk tag:", result.error);
-      }
+    tagError = null;
+    const result = await commands.clearUserTagBulk([...$selectedSampleIds], bulkDimension);
+    if (result.status === "error") {
+      console.error("Failed to clear bulk tag:", result.error);
+      tagError = `Failed to clear tags: ${formatTagError(result.error)}`;
     }
     await refreshSamples();
     clearSelection();
   }
 
   async function resolveConflict(sampleId: number, dimension: string, value: string) {
+    tagError = null;
     const result = await commands.setUserTag(sampleId, dimension, value);
     if (result.status === "error") {
       console.error("Failed to resolve conflict:", result.error);
+      tagError = `Failed to resolve conflict: ${formatTagError(result.error)}`;
       return;
     }
-    expandedConflictSampleId = null;
-    await refreshSamples();
+    tagError = await refreshSample(sampleId);
   }
 
-  function toggleConflictPanel(sampleId: number) {
-    expandedConflictSampleId = expandedConflictSampleId === sampleId ? null : sampleId;
+  function openSampleDetails(sampleId: number) {
+    detailsSampleId = sampleId;
   }
 
   function selectRow(sampleId: number, event: MouseEvent) {
@@ -453,7 +425,6 @@
               {dimension.name}{sortLabel(key)}
             </button>
           {/each}
-          <div class="px-3">Conflict</div>
           <div class="px-3">Duration</div>
         </div>
 
@@ -491,13 +462,32 @@
                     onCheckedChange={() => toggleSelection(sample.id, true)}
                   />
                 </div>
-                <div class="min-w-0 overflow-hidden px-3 py-1.5">
-                  <div class="truncate font-mono text-xs leading-tight">{sample.filename}</div>
-                  {#if directoryPath(sample)}
-                    <div class="truncate font-mono text-[11px] leading-tight text-muted-foreground">
-                      {directoryPath(sample)}
-                    </div>
-                  {/if}
+                <div class="flex min-w-0 items-center gap-2 overflow-hidden px-3 py-1.5">
+                  <Button
+                    variant={hasConflict(sample) ? "destructive" : "ghost"}
+                    size="icon-sm"
+                    aria-label={hasConflict(sample)
+                      ? `Review conflicts and analysis details for ${sample.filename}`
+                      : `View analysis details for ${sample.filename}`}
+                    title={hasConflict(sample)
+                      ? "Review conflicts and analysis details"
+                      : "View analysis details"}
+                    onclick={() => openSampleDetails(sample.id)}
+                  >
+                    {#if hasConflict(sample)}
+                      <AlertTriangle />
+                    {:else}
+                      <Info />
+                    {/if}
+                  </Button>
+                  <div class="min-w-0">
+                    <div class="truncate font-mono text-xs leading-tight">{sample.filename}</div>
+                    {#if directoryPath(sample)}
+                      <div class="truncate font-mono text-[11px] leading-tight text-muted-foreground">
+                        {directoryPath(sample)}
+                      </div>
+                    {/if}
+                  </div>
                 </div>
                 {#each columnTagDimensions as dimension}
                   <div class="min-w-0 overflow-hidden px-3 py-1.5">
@@ -516,15 +506,6 @@
                     </button>
                   </div>
                 {/each}
-                <div class="min-w-0 overflow-hidden px-3 py-1.5">
-                  {#if hasConflict(sample)}
-                    <button type="button" onclick={() => toggleConflictPanel(sample.id)}>
-                      <Badge variant="destructive"><AlertTriangle class="size-3" /> auto</Badge>
-                    </button>
-                  {:else}
-                    <span class="text-xs text-muted-foreground">-</span>
-                  {/if}
-                </div>
                 <div class="min-w-0 truncate px-3 py-1.5 text-xs text-muted-foreground">
                   {formatDuration(sample.duration_ms)}
                 </div>
@@ -534,11 +515,11 @@
         </div>
       </div>
 
-      {#if expandedConflictSample}
-        <ConflictResolver
-          sample={expandedConflictSample}
-          onResolve={resolveConflict}
-          onClose={() => (expandedConflictSampleId = null)}
+      {#if detailsSample}
+        <SampleDetailsDialog
+          sample={detailsSample}
+          onResolveConflict={resolveConflict}
+          onClose={() => (detailsSampleId = null)}
         />
       {/if}
 
@@ -597,6 +578,14 @@
           </Button>
         </div>
       {/if}
+    </div>
+  {/if}
+
+  {#if tagError}
+    <div class="border-t bg-background px-3 py-2">
+      <Badge variant="destructive" title={tagError}>
+        <span class="truncate">{tagError}</span>
+      </Badge>
     </div>
   {/if}
 

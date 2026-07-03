@@ -43,7 +43,7 @@ Evaluation of the analysis requirements against available libraries:
 | Audio metadata | `mutagen`, `soundfile` — complete | `symphonia` — capable |
 | Filename heuristics | trivial in any language | trivial in any language |
 | Loop/one-shot detection | `essentia` pre-trained model | no equivalent |
-| Instrument classification | `essentia`, PANNs (CNN14), YAMNet | ONNX only, no pre-trained audio models |
+| Instrument classification | LAION CLAP via `transformers`, `essentia`, YAMNet | ONNX only, no pre-trained audio models |
 | BPM / beat tracking | `essentia`, `librosa` | `aubio` bindings (limited) |
 | Key detection | `essentia`, `librosa` | none |
 
@@ -68,11 +68,31 @@ Embedded tags are mapped to dimensions where a clear mapping exists:
 | Embedded field | Dimension | Notes |
 |---|---|---|
 | BPM / TBPM | Tempo | parsed as float |
-| KEY / TKEY | Key | normalised to chromatic note name |
+| KEY / TKEY | Key + Mode | normalised chromatic note name plus major/minor when present |
 | GENRE | Instrument | low confidence, fuzzy match against instrument values |
 | COMMENT | — | stored as-is for heuristic stage to process |
 
-Embedded tags that map cleanly (BPM, Key) are treated as `metadata` source with confidence 0.95. Genre-based instrument guesses use confidence 0.4.
+Embedded tags that map cleanly (BPM, Key, Mode) are treated as `metadata` source with confidence 0.95. Genre-based instrument guesses use confidence 0.4.
+
+---
+
+## Source policy by detected field
+
+Analysis uses the most explainable source available for each field. ML is used where a model is actually trained for the question being asked; deterministic metadata and signal descriptors take precedence when they are more reliable.
+
+| Field | Primary method | Secondary method | ML use | Emission rule |
+|---|---|---|---|---|
+| File metadata | Container/header parsing with `soundfile` and Mutagen | none | none | Always emit file metadata when readable. |
+| Waveform | Peak bins from decoded PCM | none | none | Always emit when decode succeeds. |
+| Type: loop | Filename/path tokens (`loop`, `lp`, tempo-in-name) and embedded library metadata | Essentia/Freesound loop descriptors (`bpm_loop_confidence`, beat/onset regularity) when available | Only a real binary loop/non-loop model may emit standalone ML Type. The Freesound Loop Dataset role model must not be used as loop detection. | Emit only from explicit evidence; leave empty if uncertain. |
+| Type: one-shot | Filename/path tokens (`oneshot`, `one_shot`, `1shot`, etc.) | Short-duration plus envelope/onset shape descriptors may provide low-confidence evidence only after validation | No fixed fallback. No one-shot tag from a loop-role model. | Emit only from explicit filename/metadata or a validated classifier; leave empty if uncertain. |
+| Instrument | Filename/path tokens | CLAP prompt scoring over shipped Instrument values | Optional Essentia/Jamendo/loop-role models may add supporting instrument evidence, but only for their trained labels. | Emit top candidates above threshold; show conflicts instead of suppressing evidence. |
+| Tempo | Embedded BPM/TBPM and filename BPM | Essentia `RhythmExtractor2013` / loop BPM descriptors or `librosa.beat.beat_track` fallback | none | Prefer metadata/filename; emit audio-estimated BPM only with confidence and sane range. |
+| Key | Embedded KEY/TKEY and filename key | Essentia `KeyExtractor` / HPCP key strength | none | Emit only when strength/parse confidence clears threshold. |
+| Mode | Embedded/filename major-minor suffix | Essentia key scale when key strength clears threshold | CLAP mode prompts are weak supporting evidence only and capped top-1. | Prefer deterministic/tonal extraction; do not infer mode from mood words alone. |
+| Mood | none yet | optional curated filename tokens | CLAP/Jamendo mood models only if exposed as separate low-trust candidates | Do not emit by default until UI can present weak semantic evidence clearly. |
+
+Default behavior should require no user-supplied paths. The app downloads and caches supported model files from known sources; the analyzer auto-enables a backend only when both its Python package and model files are present. Missing optional backends must degrade to deterministic metadata/heuristics without inventing substitute tags.
 
 ---
 
@@ -90,6 +110,8 @@ Pattern matching against the file's basename and its parent folder names. Runs a
 | `oneshot`, `one_shot`, `one-shot`, `1shot` | Type: one-shot | 0.95 |
 | `\d{2,3}bpm`, `\d{2,3}_bpm` | Type: loop | 0.7 (tempo implies loop) |
 
+No Type fallback is emitted. If neither filename heuristics nor ML classification produces a Type candidate, the analysis response leaves Type empty.
+
 ### Instrument detection
 
 Token list matched against dimension_values for the Instrument dimension. Matching is case-insensitive, whole-word.
@@ -104,15 +126,15 @@ The full token list is maintained in a heuristic config file (JSON) shipped with
 
 ### Key detection
 
-`[A-G][b#]?\s?(maj|min|major|minor)?` → Key: normalised value (0.85 if both note and mode present, 0.65 if note only)
+`[A-G][b#]?\s?(maj|min|major|minor|m)?` → Key: normalised pitch class; when a mode suffix is present also emits Mode: `major` or `minor` (0.85 if both note and mode are present, 0.65 if note only)
 
 ---
 
 ## Stage 3 — ML audio classification
 
-**Primary library:** [Essentia](https://essentia.upf.edu/) (MTG / Universitat Pompeu Fabra)
+**Primary libraries:** CLAP via PyTorch for broad semantic tags; Essentia/librosa-style MIR descriptors for tempo, key, and loopability evidence.
 
-Essentia is chosen because it ships pre-trained TensorFlow Lite models purpose-built for music information retrieval tasks, including loop detection and instrument recognition. Models run locally with no network calls.
+Essentia is useful for deterministic MIR descriptors and some high-level models, but available model training scope matters. The Freesound Loop Dataset model classifies the instrument role of known loops; it is not a loop-vs-one-shot classifier and must not be used as one.
 
 ### 3.1 Loop vs. one-shot (Type dimension)
 
@@ -120,27 +142,33 @@ Essentia is chosen because it ships pre-trained TensorFlow Lite models purpose-b
 
 Produces: `loop` or `one-shot` with a probability score → confidence.
 
-Fallback: if Essentia's loop model is unavailable, use onset density heuristic via `librosa.onset.onset_detect` — a file with a single onset cluster is likely a one-shot; regular periodic onsets suggest a loop.
+Fallback: none. If Essentia's loop model is unavailable, no ML Type tag is emitted.
 
 ### 3.2 Instrument classification (Instrument dimension)
 
-**Model:** PANNs CNN14 (`panns_inference`) — pre-trained on AudioSet (527 audio classes)
+**Model:** LAION CLAP (`laion/larger_clap_music`) via Hugging Face `transformers`.
 
-PANNs outputs probabilities over 527 AudioSet classes. A static mapping file translates AudioSet class names to Sonoscope instrument dimension values:
+CLAP scores the audio against a hand-maintained set of text prompts. A static prompt mapping file translates the highest-scoring prompts to Sonoscope instrument dimension values, including the full shipped Instrument vocabulary (`kick`, `snare`, `hi-hat`, `clap`, `percussion`, `tops`, `bass`, `chord`, `guitar`, `piano`, `brass`, `woodwind`, `strings`, `synth`, `lead`, `pad`, `vocal`, `fx`, `foley`, and `cymbal`):
 
 ```
-"Kick drum"           → kick
-"Snare drum"          → snare
-"Hi-hat"              → hi-hat
-"Clapping"            → clap
-"Bass guitar"         → bass
-"Electric guitar"     → chord / lead
-"Synthesizer"         → synth
-"Vocal music"         → vocal
+"a kick drum sample"        → kick
+"a snare drum sample"       → snare
+"a hi-hat cymbal sample"    → hi-hat
+"a hand clap sample"        → clap
+"a bass guitar sample"      → bass
+"an electric guitar sample" → guitar
+"a synthesizer sample"      → synth
+"a vocal sample"            → vocal
 ...
 ```
 
-Only AudioSet classes with probability ≥ 0.3 are emitted. The top-3 mapped Sonoscope values are returned. Confidence = AudioSet probability × mapping_weight (mapping_weight reflects how direct the mapping is; exact matches = 1.0, broad mappings = 0.7).
+Only prompt candidates above their configured confidence threshold are emitted. The top scored candidates per dimension are returned. Confidence is the CLAP softmax score for the best prompt attached to the candidate.
+
+Runtime device selection is owned by the Python sidecar. `SONOSCOPE_CLAP_DEVICE` defaults to `auto`, which tries CUDA first, then Apple MPS, then CPU. If an accelerator is reported available but fails while moving inputs/model state or running inference, CLAP retries on CPU for that request and keeps CPU as the active fallback device.
+
+On CUDA, CLAP inference runs under PyTorch inference mode and enables TF32 matmul/cuDNN paths by default where PyTorch exposes them. Set `SONOSCOPE_DISABLE_CUDA_TF32=1` to disable TF32 if exact float32 behavior is needed for debugging.
+
+On Windows, the analyzer resolves PyTorch from the CUDA 12.8 PyTorch index so GPU-capable NVIDIA environments do not silently install the CPU-only wheel. CPU fallback remains available when CUDA is not reported by PyTorch.
 
 ### 3.3 Tempo (Tempo dimension)
 
@@ -152,7 +180,7 @@ Returns BPM with a confidence score. Only emitted if confidence ≥ 0.5.
 
 **Library:** `essentia.standard.KeyExtractor`
 
-Returns key + scale (major/minor) + strength. Only emitted if strength ≥ 0.5.
+Returns key + scale (major/minor) + strength. Key and Mode are emitted separately when strength ≥ 0.5.
 
 ---
 
@@ -173,7 +201,7 @@ The Python pipeline runs as a **long-lived subprocess** (one instance per librar
 ### Process lifecycle
 ```
 Core spawns sidecar → sidecar sends {"ready": true}
-Core sends file requests → sidecar processes and responds
+Core sends file request batches → sidecar processes and responds
 Core sends {"shutdown": true} → sidecar exits cleanly
 On app close / crash: Core kills the sidecar process
 ```
@@ -181,11 +209,17 @@ On app close / crash: Core kills the sidecar process
 ### Request format (Core → sidecar, one JSON object per line)
 ```json
 {
-  "id": "uuid-or-sequence-number",
-  "path": "/absolute/path/to/file.wav",
-  "relative_path": "Drums/Kicks/punchy_kick.wav"
+  "requests": [
+    {
+      "id": "uuid-or-sequence-number",
+      "path": "/absolute/path/to/file.wav",
+      "relative_path": "Drums/Kicks/punchy_kick.wav"
+    }
+  ]
 }
 ```
+
+The request shape is batch-first. A single file is represented as a batch with one request.
 
 ### Response format (sidecar → Core, one JSON object per line)
 ```json
@@ -226,17 +260,17 @@ On failure:
 ```
 
 ### Batching
-Core sends requests to the sidecar as fast as they are produced. The sidecar processes them and responds as each completes. Core does not need to wait for one response before sending the next — the `id` field correlates requests to responses. Concurrency within the sidecar is managed by its own thread pool (configurable, default: number of CPU cores).
+Core sends analysis requests in batches to a single long-lived sidecar process. The default Core batch size is 16 and can be overridden with `SONOSCOPE_ANALYSIS_BATCH_SIZE`. The sidecar uses the same batch to run CLAP prompt scoring across multiple files in one model invocation, while metadata, heuristics, deterministic audio descriptors, and waveform generation remain per-file steps. CLAP can further split a Core batch with `SONOSCOPE_CLAP_BATCH_SIZE` when a GPU has less memory, or increase it when the GPU has headroom. The `id` field correlates every response to its request.
 
 ---
 
 ## Distribution
 
-The sidecar is distributed as a self-contained binary alongside the Tauri app, built with **PyInstaller**. It bundles the Python runtime, all libraries, and model weights. The models (Essentia TFLite + PANNs CNN14) add approximately 50–150 MB to the distribution.
+The sidecar is distributed as a self-contained binary alongside the Tauri app, built with **PyInstaller**. It bundles the Python runtime and libraries. Large CLAP weights and optional Essentia model files may be downloaded after install into the local model cache instead of being bundled into the app binary.
 
-Model files are versioned and stored in the app's data directory. On first launch, the sidecar checks for model files and downloads them if missing (or they can be bundled directly for fully offline installs).
+Model files are versioned and stored in the app's data directory. Core owns model cache management: it checks the required Hugging Face files for `laion/larger_clap_music` and the optional Essentia `.pb` files, downloads them on explicit user action, and launches the sidecar with `SONOSCOPE_CLAP_MODEL_PATH`, `SONOSCOPE_CLAP_LOCAL_ONLY=1`, and `SONOSCOPE_ESSENTIA_MODEL_DIR`. If a local model is incomplete or the corresponding Python package is unavailable, the analyzer skips that backend and still returns deterministic metadata/heuristic results.
 
-**[open]** Decide whether models are bundled in the installer or downloaded on first run. Tradeoff: installer size vs. first-run experience.
+**Current decision:** Model files are downloaded after install via the UI. Fully offline installers can still pre-populate the same app data model directories.
 
 ---
 

@@ -47,7 +47,7 @@ The sidecar has the highest test coverage requirement. Tests are split into thre
 |---|---|---|
 | Heuristics | Parametrized unit tests: input filename → expected tags. Cover common tokens, edge cases, conflicting tokens, empty paths. | `pytest`, `pytest-parametrize` |
 | Metadata extraction | Unit tests with fixture files covering each supported format (WAV, FLAC, MP3, AIFF with known embedded tags). | `pytest`, fixture files in `tests/fixtures/` |
-| ML model output mapping | Unit tests that mock the raw model output (confidence vectors) and test only the mapping logic (AudioSet class → Sonoscope dimension value). No model loaded. | `pytest`, `unittest.mock` |
+| ML model output mapping | Unit tests that mock raw model scores and test only the mapping logic (CLAP prompt candidate → Sonoscope dimension value). No model loaded. | `pytest`, `unittest.mock` |
 | Full pipeline integration | Integration tests using a small set of labeled fixture audio files (~20 files covering each instrument + type category). Assert that the pipeline produces the expected top-1 tag. Model is loaded; tests are marked `@pytest.mark.integration` and excluded from fast CI runs. | `pytest`, real model weights |
 | IPC protocol | Unit tests for request parsing and response serialisation via Pydantic models. | `pytest` |
 
@@ -103,7 +103,8 @@ sonoscope/
 │   │   ├── waveform.py      # Waveform data generation
 │   │   └── mappings/
 │   │       ├── heuristic_tokens.json   # Token → tag mappings
-│   │       └── audioset_map.json       # AudioSet class → Sonoscope value
+│   │       ├── audioset_map.json       # Legacy AudioSet class → Sonoscope value
+│   │       └── clap_prompts.json       # CLAP prompt candidates → Sonoscope value
 │   ├── tests/
 │   │   └── fixtures/        # Labeled audio files + manifest.json
 │   ├── pyproject.toml
@@ -143,7 +144,7 @@ npx shadcn-svelte@latest init
 # 4. Set up Python sidecar
 cd analyzer
 uv init
-uv add pydantic mutagen soundfile librosa essentia-tensorflow panns-inference
+uv add pydantic mutagen soundfile torch transformers
 uv add --dev pytest ty pytest-mock ruff
 ```
 
@@ -274,8 +275,9 @@ Implementation status is tracked in [`08-implementation-tracker.md`](08-implemen
 ### Phase 5 — ML Analysis
 **Goal:** ML-based Type and Instrument classification runs as part of analysis.
 
-- [ ] Python: `classifier.py` — Essentia loop detector + PANNs CNN14 integration
-- [ ] Python: `audioset_map.json` mapping file
+- [ ] Python: `classifier.py` — Essentia loop detector + LAION CLAP prompt scoring
+- [ ] Python: `clap_prompts.json` mapping file
+- [ ] Rust/UI: ML model status and download commands
 - [ ] Python: waveform generation (`waveform.py`)
 - [ ] DB schema: `waveform_data` column on `samples`; migration 003
 - [ ] Integration test suite with fixture audio files (`@pytest.mark.integration`)

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import files
 from pathlib import PurePath
-from typing import Any
+
+from pydantic import BaseModel
 
 from sonoscope_analyzer.protocol import TagCandidate
 
@@ -18,6 +18,17 @@ class TokenRule:
     value: str
     tokens: tuple[str, ...]
     confidence: float
+
+
+class _TokenRuleModel(BaseModel):
+    value: str
+    tokens: tuple[str, ...]
+    confidence: float
+
+
+class _TokenRuleFileModel(BaseModel):
+    type: list[_TokenRuleModel] = []
+    instrument: list[_TokenRuleModel] = []
 
 
 TOKEN_SPLIT_RE = re.compile(r"[^a-z0-9#]+")
@@ -37,7 +48,6 @@ KEY_ALIASES = {
     "ab": "G#",
     "bb": "A#",
 }
-DEFAULT_ONE_SHOT_CONFIDENCE = 0.05
 
 
 def analyze_path(relative_path: str) -> list[TagCandidate]:
@@ -51,14 +61,15 @@ def analyze_path(relative_path: str) -> list[TagCandidate]:
         if rule_matches(rule, normalized_filename, tokens):
             add_candidate(candidates, "Type", rule.value, rule.confidence)
 
-    if TEMPO_RE.search(filename):
+    tempo_match = TEMPO_RE.search(filename)
+    if tempo_match is not None:
         add_candidate(candidates, "Type", "loop", 0.7)
 
     for rule in load_token_rules("instrument"):
         if rule_matches(rule, normalized_filename, tokens):
             add_candidate(candidates, "Instrument", rule.value, rule.confidence)
 
-    if (tempo_match := TEMPO_RE.search(filename)) is not None:
+    if tempo_match is not None:
         add_candidate(candidates, "Tempo", tempo_match.group(1), 0.95)
     elif (inline_match := INLINE_TEMPO_RE.search(filename)) is not None:
         add_candidate(candidates, "Tempo", inline_match.group(1), 0.7)
@@ -66,11 +77,11 @@ def analyze_path(relative_path: str) -> list[TagCandidate]:
     key_match = KEY_RE.search(filename)
     if key_match is not None:
         note = normalize_key(key_match.group(1), key_match.group(2))
-        confidence = 0.85 if key_match.group(3) else 0.65
+        mode = normalize_mode(key_match.group(3))
+        confidence = 0.85 if mode else 0.65
         add_candidate(candidates, "Key", note, confidence)
-
-    if not has_candidate_for_dimension(candidates, "Type"):
-        add_candidate(candidates, "Type", "one-shot", DEFAULT_ONE_SHOT_CONFIDENCE)
+        if mode is not None:
+            add_candidate(candidates, "Mode", mode, confidence)
 
     return list(candidates.values())
 
@@ -89,6 +100,17 @@ def normalize_key(note: str, accidental: str) -> str:
     if raw in KEY_ALIASES:
         return KEY_ALIASES[raw]
     return raw[0].upper() + raw[1:]
+
+
+def normalize_mode(mode: str | None) -> str | None:
+    if mode is None:
+        return None
+    normalized = mode.strip().lower()
+    if normalized in {"maj", "major"}:
+        return "major"
+    if normalized in {"min", "minor", "m"}:
+        return "minor"
+    return None
 
 
 def rule_matches(rule: TokenRule, normalized_path: str, tokens: set[str]) -> bool:
@@ -121,43 +143,16 @@ def add_candidate(
         )
 
 
-def has_candidate_for_dimension(
-    candidates: dict[tuple[str, str, str], TagCandidate],
-    dimension: str,
-) -> bool:
-    return any(candidate.dimension == dimension for candidate in candidates.values())
-
-
 @lru_cache(maxsize=1)
-def load_config() -> dict[str, Any]:
+def load_config() -> _TokenRuleFileModel:
     config_path = files("sonoscope_analyzer").joinpath("mappings/heuristic_tokens.json")
     with config_path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    if not isinstance(data, dict):
-        raise ValueError("heuristic token config must be an object")
-    return data
+        return _TokenRuleFileModel.model_validate_json(handle.read())
 
 
 def load_token_rules(group: str) -> tuple[TokenRule, ...]:
-    raw_rules = load_config().get(group, [])
-    rules: list[TokenRule] = []
-    if not isinstance(raw_rules, list):
-        raise ValueError(f"heuristic token config group {group!r} must be a list")
-
-    for raw_rule in raw_rules:
-        if not isinstance(raw_rule, dict):
-            raise ValueError(f"heuristic rule in {group!r} must be an object")
-        value = raw_rule["value"]
-        tokens = raw_rule["tokens"]
-        confidence = raw_rule["confidence"]
-        if not isinstance(value, str) or not isinstance(tokens, list):
-            raise ValueError(f"heuristic rule in {group!r} has invalid value or tokens")
-        rules.append(
-            TokenRule(
-                value=value,
-                tokens=tuple(str(token) for token in tokens),
-                confidence=float(confidence),
-            )
-        )
-
-    return tuple(rules)
+    raw_rules: list[_TokenRuleModel] = getattr(load_config(), group, [])
+    return tuple(
+        TokenRule(value=rule.value, tokens=rule.tokens, confidence=rule.confidence)
+        for rule in raw_rules
+    )

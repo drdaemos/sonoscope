@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO samples\n             (path, filename, relative_path, format, size_bytes, analysis_status, discovered_at, last_seen_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n             ON CONFLICT(path) DO UPDATE SET last_seen_at = excluded.last_seen_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "d7bc02907a37a577d66dc441005168a215ff2cdf1145bd726ddf7099dbcbb748"
+}

@@ -6,6 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from sonoscope_analyzer.protocol import (
+    AnalyzeBatchRequest,
+    AnalyzeBatchResponse,
     AnalyzeRequest,
     AnalyzeResponse,
     FileMeta,
@@ -47,6 +49,21 @@ def test_request_roundtrip(raw_json: str, expected_id: str, expected_path: str) 
     assert req.path == expected_path
 
 
+def test_batch_request_parses_requests() -> None:
+    batch = AnalyzeBatchRequest.model_validate_json(
+        """
+        {
+          "requests": [
+            {"id": "a1", "path": "/audio/kick.wav", "relative_path": "kick.wav"},
+            {"id": "a2", "path": "/audio/snare.wav", "relative_path": "snare.wav"}
+          ]
+        }
+        """
+    )
+
+    assert [request.id for request in batch.requests] == ["a1", "a2"]
+
+
 def test_response_ok_serializes() -> None:
     resp = AnalyzeResponse(
         id="abc-123",
@@ -84,6 +101,20 @@ def test_response_defaults_to_ok() -> None:
     assert resp.status == "ok"
     assert resp.tags == []
     assert resp.waveform_data is None
+
+
+def test_batch_response_serializes() -> None:
+    response = AnalyzeBatchResponse(
+        responses=[
+            AnalyzeResponse(id="a1"),
+            AnalyzeResponse(id="a2", status="error", error="unsupported format"),
+        ]
+    )
+
+    parsed = AnalyzeBatchResponse.model_validate_json(response.model_dump_json())
+
+    assert [item.id for item in parsed.responses] == ["a1", "a2"]
+    assert parsed.responses[1].status == "error"
 
 
 @pytest.mark.parametrize(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from sonoscope_analyzer.protocol import FileMeta, TagCandidate
 KEY_FIELDS = ("initialkey", "key", "tkey")
 BPM_FIELDS = ("bpm", "tbpm", "tempo")
 GENRE_FIELDS = ("genre", "tcon")
+KEY_RE = re.compile(r"^\s*([A-Ga-g])([#b♯♭]?)(?:[\s_-]*(maj(?:or)?|min(?:or)?|m))?", re.I)
 
 GENRE_TO_INSTRUMENT = {
     "bass": "bass",
@@ -96,12 +98,21 @@ def extract_tag_candidates(path: Path) -> list[TagCandidate]:
 
     key = first_field(flattened, KEY_FIELDS)
     if key is not None:
-        normalized_key = parse_key(key)
+        normalized_key, mode = parse_key(key)
         if normalized_key is not None:
             candidates.append(
                 TagCandidate(
                     dimension="Key",
                     value=normalized_key,
+                    source="metadata",
+                    confidence=0.95,
+                )
+            )
+        if mode is not None:
+            candidates.append(
+                TagCandidate(
+                    dimension="Mode",
+                    value=mode,
                     source="metadata",
                     confidence=0.95,
                 )
@@ -160,11 +171,27 @@ def parse_tempo(value: str) -> int | None:
     return None
 
 
-def parse_key(value: str) -> str | None:
+def parse_key(value: str) -> tuple[str | None, str | None]:
     normalized = value.strip().replace("♯", "#").replace("♭", "b")
     if not normalized:
-        return None
-    note = normalized.split()[0].split("-")[0]
+        return None, None
+    match = KEY_RE.search(normalized)
+    if match is None:
+        return None, None
+    note = f"{match.group(1).upper()}{match.group(2)}"
     aliases = {"Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#"}
-    note = note[0].upper() + note[1:]
-    return aliases.get(note, note)
+    return aliases.get(note, note), parse_mode([match.group(3)])
+
+
+def parse_mode(parts: list[str | None]) -> str | None:
+    for part in parts:
+        if part is None:
+            continue
+        normalized = part.strip().lower()
+        if normalized in {"maj", "major"}:
+            return "major"
+        if normalized in {"min", "minor"}:
+            return "minor"
+        if len(normalized) >= 2 and normalized.endswith("m") and not normalized.endswith("maj"):
+            return "minor"
+    return None

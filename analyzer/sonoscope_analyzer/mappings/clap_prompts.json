@@ -1,0 +1,235 @@
+{
+  "model": "laion/larger_clap_music",
+  "candidates": [
+    {
+      "dimension": "Instrument",
+      "value": "kick",
+      "prompts": [
+        "a kick drum sample",
+        "a punchy bass drum one shot",
+        "an electronic kick drum"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "snare",
+      "prompts": [
+        "a snare drum sample",
+        "an electronic snare one shot",
+        "a backbeat snare drum"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "hi-hat",
+      "prompts": [
+        "a hi-hat cymbal sample",
+        "a closed hi-hat sample",
+        "an open hi-hat sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "clap",
+      "prompts": [
+        "a hand clap sample",
+        "an electronic clap sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "cymbal",
+      "prompts": [
+        "a crash cymbal sample",
+        "a ride cymbal sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "percussion",
+      "prompts": [
+        "a percussion sample",
+        "a drum percussion loop",
+        "a shaker percussion sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "tops",
+      "prompts": [
+        "a drum tops loop",
+        "a percussion top loop",
+        "a hi-hat and percussion top loop"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "bass",
+      "prompts": [
+        "a bass guitar sample",
+        "a synth bass sample",
+        "a low bass loop",
+        "an 808 bass sample",
+        "a sub bass sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "chord",
+      "prompts": [
+        "a chord stab sample",
+        "a musical chord progression loop",
+        "a synth chord sample",
+        "a piano chord sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "guitar",
+      "prompts": [
+        "an electric guitar sample",
+        "an acoustic guitar sample",
+        "a guitar riff loop",
+        "a plucked guitar sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "piano",
+      "prompts": [
+        "a piano sample",
+        "an electric piano sample",
+        "a piano keys loop",
+        "a rhodes electric piano sample",
+        "an organ keys sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "brass",
+      "prompts": [
+        "a brass instrument sample",
+        "a trumpet sample",
+        "a trombone sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "woodwind",
+      "prompts": [
+        "a saxophone sample",
+        "a flute sample",
+        "a woodwind instrument sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "strings",
+      "prompts": [
+        "a string section sample",
+        "a violin sample",
+        "a cello sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "synth",
+      "prompts": [
+        "a synthesizer sample",
+        "a synth lead sample",
+        "a synth stab sample",
+        "an arpeggiated synthesizer loop",
+        "an electronic synth pluck sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "lead",
+      "prompts": [
+        "a lead melody sample",
+        "a synth lead melody loop",
+        "a lead instrument phrase",
+        "a melodic lead sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "pad",
+      "prompts": [
+        "an ambient pad sample",
+        "a sustained synth pad sample",
+        "a soft atmospheric pad loop",
+        "a long evolving pad sound"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "vocal",
+      "prompts": [
+        "a vocal sample",
+        "a singing voice sample",
+        "a vocal chop sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "fx",
+      "prompts": [
+        "a sound effect sample",
+        "a riser effect sample",
+        "an impact effect sample",
+        "a noise sweep sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
+      "value": "foley",
+      "prompts": [
+        "a foley sound recording",
+        "a field recording sample",
+        "a real world sound effect",
+        "a found sound texture sample"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Mode",
+      "value": "major",
+      "prompts": [
+        "a major key music sample",
+        "a bright major chord sample",
+        "a happy major scale musical loop"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Mode",
+      "value": "minor",
+      "prompts": [
+        "a minor key music sample",
+        "a dark minor chord sample",
+        "a sad minor scale musical loop"
+      ],
+      "min_confidence": 0.12
+    }
+  ]
+}

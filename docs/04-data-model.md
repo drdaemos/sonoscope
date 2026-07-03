@@ -80,6 +80,7 @@ Defines the classification axes available in the library.
 | Type | enum |
 | Instrument | multi_enum |
 | Key | enum |
+| Mode | enum |
 | Tempo | numeric |
 | Mood | multi_enum |
 
@@ -193,6 +194,7 @@ On library creation the following rows are inserted:
 - Type: `loop`, `one-shot`
 - Instrument: `kick`, `snare`, `hi-hat`, `clap`, `percussion`, `bass`, `chord`, `pad`, `synth`, `lead`, `vocal`, `fx`, `foley`
 - Key: chromatic notes A–G with sharps/flats
+- Mode: `major`, `minor`
 
 **organisation_presets (system):**
 - "Type / Instrument" → `{Type}/{Instrument}`

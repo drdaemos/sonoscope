@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import numpy as np
-import soundfile
 from numpy.typing import NDArray
+
+from sonoscope_analyzer.audio import decode_mono
 
 DEFAULT_WAVEFORM_BINS = 256
 
@@ -12,12 +13,11 @@ DEFAULT_WAVEFORM_BINS = 256
 def generate_waveform(path: str, bin_count: int = DEFAULT_WAVEFORM_BINS) -> list[int] | None:
     """Read an audio file and return byte-scaled peak amplitude bins."""
     try:
-        data, _sample_rate = soundfile.read(path, dtype="float32", always_2d=True)
+        decoded = decode_mono(path)
     except (RuntimeError, OSError, ValueError):
         return None
 
-    mono = np.mean(data, axis=1, dtype=np.float32)
-    return amplitude_bins(mono, bin_count)
+    return amplitude_bins(decoded.samples, bin_count)
 
 
 def amplitude_bins(samples: NDArray[np.float32], bin_count: int) -> list[int]:
@@ -29,13 +29,10 @@ def amplitude_bins(samples: NDArray[np.float32], bin_count: int) -> list[int]:
 
     amplitudes = np.clip(np.abs(samples), 0.0, 1.0)
     edges = np.linspace(0, amplitudes.size, bin_count + 1, dtype=np.int64)
-    bins: list[int] = []
-    for index in range(bin_count):
-        start = int(edges[index])
-        end = int(edges[index + 1])
-        if end <= start:
-            bins.append(0)
-            continue
-        peak = float(np.max(amplitudes[start:end]))
-        bins.append(round(peak * 255))
-    return bins
+    starts = edges[:-1]
+    # reduceat needs strictly valid slice starts; empty bins (start == end)
+    # would otherwise pick up the next sample, so zero them explicitly.
+    peaks = np.maximum.reduceat(amplitudes, np.minimum(starts, amplitudes.size - 1))
+    empty = starts >= edges[1:]
+    peaks[empty] = 0.0
+    return [int(round(float(peak) * 255)) for peak in peaks]

@@ -1,6 +1,14 @@
 {
   "type": [
-    { "value": "loop", "tokens": ["loop", "loops", "lp"], "confidence": 0.95 },
+    {
+      "value": "loop",
+      "tokens": [
+        "loop", "loops", "lp",
+        "top_loop", "top loop", "top_loops", "top loops",
+        "drum_top", "drum top", "drum_tops", "drum tops", "tops"
+      ],
+      "confidence": 0.95
+    },
     {
       "value": "one-shot",
       "tokens": ["oneshot", "one_shot", "one-shot", "1shot", "shot"],
@@ -15,11 +23,6 @@
       "value": "break",
       "tokens": ["break", "breaks", "drum break", "drum_break"],
       "confidence": 0.9
-    },
-    {
-      "value": "top-loop",
-      "tokens": ["top_loop", "top loop", "drum_top", "drum top", "tops"],
-      "confidence": 0.85
     },
     {
       "value": "texture",
@@ -51,6 +54,14 @@
         "shaker", "tambourine", "tamb", "tambo",
         "cowbell", "cabassa", "woodblock", "triangle",
         "clave", "djembe", "timbal", "agogo", "cajon"
+      ],
+      "confidence": 0.85
+    },
+    {
+      "value": "tops",
+      "tokens": [
+        "top_loop", "top loop", "top_loops", "top loops",
+        "drum_top", "drum top", "drum_tops", "drum tops", "tops"
       ],
       "confidence": 0.85
     },

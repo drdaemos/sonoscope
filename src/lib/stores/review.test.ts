@@ -33,6 +33,7 @@ beforeEach(() => {
     { name: "Type", value_type: "enum", values: ["loop", "one-shot"] },
     { name: "Instrument", value_type: "multi_enum", values: ["kick", "snare"] },
     { name: "Key", value_type: "enum", values: ["A", "C"] },
+    { name: "Mode", value_type: "enum", values: ["major", "minor"] },
   ]);
   clearFilters();
   clearSelection();

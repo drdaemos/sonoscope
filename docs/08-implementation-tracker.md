@@ -71,12 +71,12 @@ Goal: files are analyzed by filename heuristics; tags appear in the list.
 | Pydantic IPC protocol models | Implemented | `analyzer/tests/test_protocol.py`; `uv run pytest`. |
 | Analyzer stdin/stdout loop | Implemented | Emits ready line and processes newline-delimited requests in `sonoscope_analyzer.main`. |
 | Heuristic token config | Implemented | `analyzer/sonoscope_analyzer/mappings/heuristic_tokens.json`. |
-| Filename/path heuristics | Implemented | Filename-only matching with one-shot default when no Type is detected; 50+ parametrized cases in `analyzer/tests/test_heuristics.py`. |
+| Filename/path heuristics | Implemented | Filename-only matching without Type defaulting; if neither filename nor ML produces Type evidence, Type is left empty. Covered by `analyzer/tests/test_heuristics.py` and `analyzer/tests/test_main.py`. |
 | Metadata extraction | Implemented | Mutagen + SoundFile coverage in `analyzer/tests/test_metadata.py`. |
-| Rust sidecar process manager | In progress | Long-lived uv-managed analyzer client exists; ignored Rust integration test passes when explicitly run with process-spawn access. |
+| Rust sidecar process manager | In progress | Long-lived uv-managed analyzer client exists, sends batch-first IPC requests, and has an ignored Rust integration test that passes when explicitly run with process-spawn access. Response reads are guarded by a configurable timeout (`SONOSCOPE_ANALYZER_TIMEOUT_SECS`), and the sidecar is killed and respawned after a failed batch so a desynchronized pipe cannot stall later batches. The analyzer guarantees one response line per request (per-request error isolation; batch validation failures answer entry-for-entry), covered by `analyzer/tests/test_main.py`. |
 | Tags schema migration | Implemented | `src-tauri/migrations/002_tags.sql`, `003_expanded_tag_values.sql`, and `004_primary_tags.sql`. |
 | Seed system dimensions/values | Implemented | Covered by `test_open_seeds_system_tag_dimensions`; includes the expanded heuristic Type/Instrument vocabulary. |
-| Analysis orchestrator | Implemented | Queues pending samples, supports full-library reanalysis after re-scan, dispatches to analyzer, persists auto-tags, marks auto-primary tags, and updates status. |
+| Analysis orchestrator | Implemented | Queues pending samples, dispatches configurable sidecar batches, persists auto-tags per sample in one transaction using a preloaded dimension lookup, marks auto-primary tags via the shared `tags` module, and updates status. Re-scan now analyses only pending samples; a header menu action (`Re-analyse all samples`) requeues the full library. Supports cancellation (`cancel_analysis`) and emits `analysis-cancelled`/`analysis-failed` events surfaced in the UI. |
 | Tag columns in file list | Implemented | Type + Instrument chips are shown in `FileList.svelte`. |
 | Analysis progress badge | Implemented | Header uses one scan/analyze pipeline action with progress state; completed libraries show `Re-scan` and requeue samples for analysis. |
 
@@ -90,11 +90,13 @@ Goal: user can review and edit tags; filtering and search work.
 | Filename search | Implemented | Real-time filename substring filter in `src/lib/stores/review.ts`; verified by `npm run check` and `npm run build`. |
 | Sortable columns | Implemented | Sample and tag-dimension sorting in `FileList.svelte`; review rows now use deterministic fixed-height virtualization to avoid stale measurement state across filter changes; verified by `npm run check`, `npm run test`, and `npm run build`. |
 | Inline tag editing | Implemented | Reusable tag editor supports enum, multi-enum, and numeric dimensions from typed dimension metadata; covered by `TagValueEditor.test.ts`, `npm run check`, and `npm run build`. |
-| Bulk tag editor | Implemented | Multi-select action bar uses typed dimension metadata for all editable enum, multi-enum, and numeric dimensions; row drag selection selects or deselects along a single drag path based on the starting row; verified by `npm run check` and `npm run build`. |
-| Conflict indicator and panel | Implemented | Conflict resolver is an overlay panel outside table layout, shows current candidate plus alternatives, and no longer resets the review scroll position on resolve; covered by `ConflictResolver.test.ts`. |
+| Bulk tag editor | Implemented | Multi-select action bar uses typed dimension metadata for all editable enum, multi-enum, and numeric dimensions; row drag selection selects or deselects along a single drag path based on the starting row. Bulk edits go through single typed `set_user_tag_bulk`/`clear_user_tag_bulk` commands, and tag-edit failures are surfaced in the review UI; verified by `npm run check` and `npm run test`. |
+| Sample details and conflict decisions | Implemented | Review rows use an info/warning icon button instead of a conflict column. The modal shows file metadata, ML detections, all gathered tag evidence, and inline conflict choices; covered by `SampleDetailsDialog.test.ts`. |
+| Major/minor mode detection | Implemented | Filename and embedded key metadata emit separate `Mode` tags; CLAP prompt scoring includes major/minor mode prompts with top-1 mode output. Covered by analyzer heuristic, metadata, and classifier tests. |
 | `tags::set_user_tag` command | Implemented | Typed `set_user_tag` command and generated `commands.setUserTag`; covered by `test_user_tag_write_and_clear_preserves_auto_tags`. |
 | `tags::clear_user_tag` command | Implemented | Typed `clear_user_tag` command and generated `commands.clearUserTag`; covered by `test_user_tag_write_and_clear_preserves_auto_tags`. |
-| Conflict query tests | Implemented | `test_conflict_query_returns_unresolved_auto_tag_conflicts`. |
+| Conflict query tests | Implemented | `test_conflict_query_returns_unresolved_auto_tag_conflicts`; conflicts are now computed in Rust from a single bulk tag fetch (`sample_rows`), with parity between bulk and single-sample paths covered by `test_sample_rows_returns_tags_and_conflicts_in_bulk`. |
+| Single-sample refresh | Implemented | Typed `get_sample` command; inline edits and conflict resolutions refresh one row instead of reloading the library. |
 
 ## Phase 5 — ML Analysis
 
@@ -102,12 +104,14 @@ Goal: ML-based Type and Instrument classification runs as part of analysis.
 
 | Feature | Status | Notes / Verification |
 |---|---|---|
-| Loop/one-shot classifier | In progress | Typed model-output mapping exists behind an optional `LoopDetector` protocol; real Essentia backend still pending. |
-| Instrument classifier | In progress | Typed model-output mapping exists behind an optional `InstrumentModel` protocol; real PANNs CNN14 backend still pending. |
-| AudioSet mapping config | Implemented | `analyzer/sonoscope_analyzer/mappings/audioset_map.json` maps model labels to seeded Sonoscope dimensions. |
-| Waveform generation | Implemented | Analyzer emits byte-scaled peak amplitude bins; Rust persists them to `samples.waveform_data`. Covered by `test_waveform.py`. |
+| Loop/one-shot classifier | In progress | Runtime uses Essentia TFLite only when `SONOSCOPE_ESSENTIA_LOOP_MODEL` is configured. No fixed-confidence fallback Type is emitted when a real loop model is unavailable. Bundled model selection remains pending. |
+| Instrument classifier | In progress | Runtime now supports batched LAION CLAP zero-shot scoring with a hand-maintained prompt map (`mappings/clap_prompts.json`) covering the full shipped Instrument vocabulary, Windows CUDA PyTorch resolution, auto device selection (`cuda` -> `mps` -> `cpu`), CUDA inference tuning, configurable CLAP micro-batches, and CPU retry fallback; real-audio fixture validation remains pending. |
+| ML model cache management | Implemented | Rust exposes typed `get_ml_model_status` and `download_ml_model` commands, stores LAION CLAP plus optional Essentia model files under app data, and passes model paths to the Python sidecar. UI shows readiness and a download action in `LibraryBar.svelte`. |
+| Analysis source policy | Implemented | `docs/05-analysis-spec.md` defines the method priority for file metadata, waveform, Type, Instrument, Tempo, Key, Mode, and Mood so weak/fallback evidence stays visible as uncertainty instead of being promoted to truth. |
+| AudioSet mapping config | Deferred | Kept as legacy config for older AudioSet-style classifiers; active Instrument classification now uses `clap_prompts.json`. |
+| Waveform generation | Implemented | Analyzer emits byte-scaled peak amplitude bins; Rust persists them to `samples.waveform_data`. Covered by `test_waveform.py` and `test_audio.py`. Audio decoding is shared across CLAP, loop detection, and waveform stages via a per-batch decode cache (`sonoscope_analyzer/audio.py`) so each file is read once per batch. |
 | Waveform DB migration | Deferred | `waveform_data` already exists in `001_init.sql`; no new migration required. |
-| ML mapping unit tests | Implemented | `analyzer/tests/test_classifier.py` validates mocked model output mapping without loading models. |
+| ML mapping unit tests | Implemented | `analyzer/tests/test_classifier.py` validates mocked model output mapping, batched CLAP prompt-score mapping, CLAP device selection/fallback, and runtime adapters without loading real model weights. Model backends live in `sonoscope_analyzer/adapters/` (CLAP, Essentia, onset fallback) with shared interfaces in `interfaces.py`, torch helpers in `torch_utils.py`, and Pydantic-validated mapping config loaders. |
 | Integration fixture suite | Not started | Mark with `@pytest.mark.integration`. |
 | End-to-end analysis verification | Not started | Scan fixture library and compare DB tags to manifest. |
 

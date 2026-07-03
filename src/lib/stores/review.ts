@@ -5,6 +5,11 @@ export type SortKey = "filename" | "relative_path" | `dimension:${string}`;
 export type SortDirection = "asc" | "desc";
 export type DimensionFilter = Record<string, string[]>;
 
+const sortCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: "base",
+});
+
 export const filenameSearch = writable("");
 export const dimensionFilters = writable<DimensionFilter>({});
 export const conflictsOnly = writable(false);
@@ -76,15 +81,17 @@ export const visibleSamples = derived(
       return true;
     });
 
-    return [...filtered].sort((a, b) => {
-      const left = sortValue(a, $sortKey);
-      const right = sortValue(b, $sortKey);
-      const comparison = left.localeCompare(right, undefined, {
-        numeric: true,
-        sensitivity: "base",
-      });
+    // Precompute sort keys once per sample; comparing inside the sort
+    // callback would recompute them O(n log n) times.
+    const keyed = filtered.map((sample) => ({
+      sample,
+      key: sortValue(sample, $sortKey),
+    }));
+    keyed.sort((a, b) => {
+      const comparison = sortCollator.compare(a.key, b.key);
       return $sortDirection === "asc" ? comparison : -comparison;
     });
+    return keyed.map((entry) => entry.sample);
   },
 );
 

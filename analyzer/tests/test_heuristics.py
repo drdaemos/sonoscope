@@ -11,14 +11,6 @@ def tag_pairs(path: str) -> set[tuple[str, str]]:
     return {(tag.dimension, tag.value) for tag in analyze_path(path)}
 
 
-def tag_for(path: str, dimension: str, value: str):
-    return next(
-        tag
-        for tag in analyze_path(path)
-        if tag.dimension == dimension and tag.value == value
-    )
-
-
 @pytest.mark.parametrize(
     "path, expected",
     [
@@ -27,7 +19,6 @@ def tag_for(path: str, dimension: str, value: str):
         ("Drums/BD/deep_bd.wav", ("Instrument", "kick")),
         ("Drums/Bass Drum/acoustic bass drum.wav", ("Instrument", "kick")),
         ("Drums/Snares/snare_001.wav", ("Instrument", "snare")),
-        ("Drums/Snares/snare_001.wav", ("Type", "one-shot")),
         ("Drums/Snares/tight_snr.wav", ("Instrument", "snare")),
         ("Drums/SD/sd_rim.wav", ("Instrument", "snare")),
         ("Hats/open_hat.wav", ("Instrument", "hi-hat")),
@@ -59,7 +50,6 @@ def tag_for(path: str, dimension: str, value: str):
         ("FX/downlifter.wav", ("Instrument", "fx")),
         ("Foley/field_noise.wav", ("Instrument", "foley")),
         ("Foley/foley_hit.wav", ("Instrument", "foley")),
-        ("Foley/foley_hit.wav", ("Type", "one-shot")),
         ("Loops/drum_loop_120bpm.wav", ("Type", "loop")),
         ("Loops/drum_lp.wav", ("Type", "loop")),
         ("Loops/beat_l_120bpm.wav", ("Type", "loop")),
@@ -71,13 +61,17 @@ def tag_for(path: str, dimension: str, value: str):
         ("Loops/bass_120_bpm.wav", ("Tempo", "120")),
         ("Loops/bass 140 bpm.wav", ("Tempo", "140")),
         ("Keys/pad_Cmaj.wav", ("Key", "C")),
+        ("Keys/pad_Cmaj.wav", ("Mode", "major")),
         ("Keys/pad_D#_minor.wav", ("Key", "D#")),
+        ("Keys/pad_D#_minor.wav", ("Mode", "minor")),
         ("Keys/pad_Bbmin.wav", ("Key", "A#")),
+        ("Keys/pad_Bbmin.wav", ("Mode", "minor")),
         ("Keys/pad_f.wav", ("Key", "F")),
         ("Mixed/loop_bass_Cmaj_124bpm.wav", ("Instrument", "bass")),
         ("Mixed/loop_bass_Cmaj_124bpm.wav", ("Type", "loop")),
         ("Mixed/loop_bass_Cmaj_124bpm.wav", ("Tempo", "124")),
         ("Mixed/loop_bass_Cmaj_124bpm.wav", ("Key", "C")),
+        ("Mixed/loop_bass_Cmaj_124bpm.wav", ("Mode", "major")),
     ],
 )
 def test_heuristic_path_tags(path: str, expected: tuple[str, str]) -> None:
@@ -109,8 +103,10 @@ def test_heuristic_avoids_partial_token_matches(path: str, unexpected: tuple[str
         # --- new type tokens ---
         ("Drums/fills/JAFUNK_102_drum_fill_energy.wav", ("Type", "fill")),
         ("Drums/breaks/BB3_100_drum_break_paprika.wav", ("Type", "break")),
-        ("Loops/top_loops/SO_FH_120_top_loop_novadream.wav", ("Type", "top-loop")),
-        ("Loops/drum_top/TS_VK_105_drum_tops_clear_the_way.wav", ("Type", "top-loop")),
+        ("Loops/top_loops/SO_FH_120_top_loop_novadream.wav", ("Type", "loop")),
+        ("Loops/top_loops/SO_FH_120_top_loop_novadream.wav", ("Instrument", "tops")),
+        ("Loops/drum_top/TS_VK_105_drum_tops_clear_the_way.wav", ("Type", "loop")),
+        ("Loops/drum_top/TS_VK_105_drum_tops_clear_the_way.wav", ("Instrument", "tops")),
         ("Textures/EF_texture_fever_dream_120.wav", ("Type", "texture")),
         ("Textures/80_RADIOFEEDBACK_DRONE.wav", ("Type", "texture")),
         # --- new instrument tokens ---
@@ -154,10 +150,15 @@ def test_heuristic_avoids_partial_token_matches(path: str, unexpected: tuple[str
         ("FX/TL_TFX_Atmosphere_One_Shot.wav", ("Instrument", "fx")),
         # --- key: short 'm' minor suffix ---
         ("Keys/pad_Am.wav", ("Key", "A")),
+        ("Keys/pad_Am.wav", ("Mode", "minor")),
         ("Keys/pad_Gm.wav", ("Key", "G")),
+        ("Keys/pad_Gm.wav", ("Mode", "minor")),
         ("Keys/pad_D#m.wav", ("Key", "D#")),
+        ("Keys/pad_D#m.wav", ("Mode", "minor")),
         ("Keys/pad_F#m.wav", ("Key", "F#")),
+        ("Keys/pad_F#m.wav", ("Mode", "minor")),
         ("Keys/pad_Ebm.wav", ("Key", "D#")),
+        ("Keys/pad_Ebm.wav", ("Mode", "minor")),
         # --- inline tempo (Splice _NNN_ convention, no 'bpm') ---
         ("packs/JAFUNK_120_drum_loop_thump_bottoms.wav", ("Tempo", "120")),
         ("packs/OS_LFC_130_drum_loop_zest_alt.wav", ("Tempo", "130")),
@@ -169,7 +170,5 @@ def test_heuristic_new_tokens(path: str, expected: tuple[str, str]) -> None:
     assert expected in tag_pairs(path)
 
 
-def test_default_one_shot_uses_weak_fallback_confidence() -> None:
-    tag = tag_for("Drums/Snares/snare_001.wav", "Type", "one-shot")
-
-    assert tag.confidence == 0.05
+def test_heuristics_do_not_default_one_shot_without_type_evidence() -> None:
+    assert ("Type", "one-shot") not in tag_pairs("Drums/Snares/snare_001.wav")

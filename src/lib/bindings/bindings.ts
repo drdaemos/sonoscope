@@ -10,11 +10,17 @@ export const commands = {
 	startDiscovery: () => typedError<null, CommandError>(__TAURI_INVOKE("start_discovery")),
 	cancelDiscovery: () => typedError<null, CommandError>(__TAURI_INVOKE("cancel_discovery")),
 	startAnalysis: (reanalyze: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("start_analysis", { reanalyze })),
+	cancelAnalysis: () => typedError<null, CommandError>(__TAURI_INVOKE("cancel_analysis")),
 	getSamples: () => typedError<SampleRow[], CommandError>(__TAURI_INVOKE("get_samples")),
+	getSample: (sampleId: SampleId) => typedError<SampleRow, CommandError>(__TAURI_INVOKE("get_sample", { sampleId })),
 	listTagDimensions: () => typedError<TagDimension[], CommandError>(__TAURI_INVOKE("list_tag_dimensions")),
-	setUserTag: (sampleId: number, dimension: string, value: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_user_tag", { sampleId, dimension, value })),
-	clearUserTag: (sampleId: number, dimension: string) => typedError<null, CommandError>(__TAURI_INVOKE("clear_user_tag", { sampleId, dimension })),
-	getSamplePlayback: (sampleId: number) => typedError<PlaybackSample, CommandError>(__TAURI_INVOKE("get_sample_playback", { sampleId })),
+	setUserTag: (sampleId: SampleId, dimension: string, value: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_user_tag", { sampleId, dimension, value })),
+	setUserTagBulk: (sampleIds: SampleId[], dimension: string, value: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_user_tag_bulk", { sampleIds, dimension, value })),
+	clearUserTag: (sampleId: SampleId, dimension: string) => typedError<null, CommandError>(__TAURI_INVOKE("clear_user_tag", { sampleId, dimension })),
+	clearUserTagBulk: (sampleIds: SampleId[], dimension: string) => typedError<null, CommandError>(__TAURI_INVOKE("clear_user_tag_bulk", { sampleIds, dimension })),
+	getSamplePlayback: (sampleId: SampleId) => typedError<PlaybackSample, CommandError>(__TAURI_INVOKE("get_sample_playback", { sampleId })),
+	getMlModelStatus: () => typedError<MlModelStatus, CommandError>(__TAURI_INVOKE("get_ml_model_status")),
+	downloadMlModel: () => typedError<MlModelStatus, CommandError>(__TAURI_INVOKE("download_ml_model")),
 };
 
 /* Types */
@@ -32,6 +38,14 @@ export type LibraryMeta = {
 	last_discovered_at: number | null,
 };
 
+export type MlModelStatus = {
+	model_id: string,
+	found: boolean,
+	path: string,
+	missing_files: string[],
+	size_bytes: number,
+};
+
 export type PlaybackSample = {
 	id: number,
 	filename: string,
@@ -41,6 +55,12 @@ export type PlaybackSample = {
 	is_loop: boolean,
 };
 
+/**
+ *  Sample identifier as used in command signatures. Exposed to TypeScript as
+ *  a plain `number` while staying `i64` on the Rust side to match the schema.
+ */
+export type SampleId = number;
+
 export type SampleRow = {
 	id: number,
 	filename: string,
@@ -48,6 +68,9 @@ export type SampleRow = {
 	format: string | null,
 	size_bytes: number | null,
 	duration_ms: number | null,
+	sample_rate: number | null,
+	bit_depth: number | null,
+	channels: number | null,
 	analysis_status: AnalysisStatus,
 	tags: SampleTag[],
 	conflicts: TagConflict[],
