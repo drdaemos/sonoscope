@@ -1,12 +1,10 @@
 <script lang="ts">
-  import {
-    AlertTriangle,
-    Check,
-    FileAudio,
-    Info,
-    Sparkles,
-    X,
-  } from "@lucide/svelte";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import Check from "@lucide/svelte/icons/check";
+  import FileAudio from "@lucide/svelte/icons/file-audio";
+  import Info from "@lucide/svelte/icons/info";
+  import Sparkles from "@lucide/svelte/icons/sparkles";
+  import X from "@lucide/svelte/icons/x";
   import { Badge, Button, Separator } from "$lib/components/ui";
   import type { SampleRow, SampleTag } from "$lib/stores/library";
 

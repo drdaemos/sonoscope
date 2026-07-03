@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FunnelX } from "@lucide/svelte";
+  import FunnelX from "@lucide/svelte/icons/funnel-x";
   import { Button, Checkbox, Input, ToggleGroup, ToggleGroupItem } from "$lib/components/ui";
   import {
     clearFilters,

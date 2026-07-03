@@ -1,6 +1,10 @@
 <script lang="ts">
   import { Select as SelectPrimitive } from "bits-ui";
-  import { AlertTriangle, FileAudio, Info, Pencil, X } from "@lucide/svelte";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import FileAudio from "@lucide/svelte/icons/file-audio";
+  import Info from "@lucide/svelte/icons/info";
+  import Pencil from "@lucide/svelte/icons/pencil";
+  import X from "@lucide/svelte/icons/x";
   import { commands } from "$lib/bindings/bindings";
   import SampleDetailsDialog from "$lib/components/SampleDetailsDialog.svelte";
   import TagValueEditor from "$lib/components/TagValueEditor.svelte";

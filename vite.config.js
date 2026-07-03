@@ -30,6 +30,11 @@ export default defineConfig({
     watch: {
       ignored: ["**/src-tauri/**"],
     },
+    // Pre-transform the app's module graph while the Rust side is still
+    // compiling, so the webview's first load is served from cache.
+    warmup: {
+      clientFiles: ["./src/main.ts"],
+    },
   },
   build: {
     outDir: "dist",

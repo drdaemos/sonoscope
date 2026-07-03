@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { Pause, Play, Repeat2, Volume2, VolumeX } from "@lucide/svelte";
+  import Pause from "@lucide/svelte/icons/pause";
+  import Play from "@lucide/svelte/icons/play";
+  import Repeat2 from "@lucide/svelte/icons/repeat-2";
+  import Volume2 from "@lucide/svelte/icons/volume-2";
+  import VolumeX from "@lucide/svelte/icons/volume-x";
   import { Button, Slider, Toggle } from "$lib/components/ui";
   import {
     formatPlaybackTime,

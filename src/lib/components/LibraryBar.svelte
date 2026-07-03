@@ -1,7 +1,11 @@
 <script lang="ts">
   import { listen } from "@tauri-apps/api/event";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
-  import { BrainCircuit, ChevronDown, Download, RefreshCw, X } from "@lucide/svelte";
+  import BrainCircuit from "@lucide/svelte/icons/brain-circuit";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
+  import Download from "@lucide/svelte/icons/download";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import X from "@lucide/svelte/icons/x";
   import { onMount } from "svelte";
   import { commands, type CommandError, type MlModelStatus } from "$lib/bindings/bindings";
   import {
@@ -53,6 +57,7 @@
   let mlModelStatus = $state<MlModelStatus | null>(null);
   let isDownloadingMl = $state(false);
   let mlDownloadStatus = $state<string | null>(null);
+  let mlDownloadPercent = $state<number | null>(null);
   let recentMenuOpen = $state(false);
 
   let tabValue = $derived(activeView);
@@ -279,11 +284,13 @@
       const [unlistenProgress, unlistenComplete] = await Promise.all([
         listen<MlModelDownloadProgress>("ml-model-download-progress", (event) => {
           mlDownloadStatus = formatMlDownloadProgress(event.payload);
+          mlDownloadPercent = overallDownloadPercent(event.payload);
         }),
         listen<MlModelStatus>("ml-model-download-complete", (event) => {
           mlModelStatus = event.payload;
           isDownloadingMl = false;
           mlDownloadStatus = null;
+          mlDownloadPercent = null;
           cleanupDownloadListeners?.();
         }),
       ]);
@@ -307,7 +314,20 @@
       cleanupDownloadListeners?.();
       isDownloadingMl = false;
       mlDownloadStatus = null;
+      mlDownloadPercent = null;
     }
+  }
+
+  /// Coarse overall progress across all files so the header control keeps a
+  /// stable width while downloading.
+  function overallDownloadPercent(progress: MlModelDownloadProgress): number | null {
+    if (progress.file_count <= 0) return null;
+    let fileFraction = 0;
+    if (progress.total_bytes && progress.total_bytes > 0) {
+      fileFraction = Math.min(1, progress.downloaded_bytes / progress.total_bytes);
+    }
+    const overall = ((progress.file_index - 1 + fileFraction) / progress.file_count) * 100;
+    return Math.max(0, Math.min(100, Math.floor(overall)));
   }
 
   function formatMlDownloadProgress(progress: MlModelDownloadProgress): string {
@@ -374,27 +394,27 @@
   }
 </script>
 
-<header class="grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 border-b bg-background px-4">
-  <div class="flex min-w-0 items-center gap-3">
+<header class="flex h-14 shrink-0 items-center gap-4 border-b bg-background px-4">
+  <div class="flex shrink-0 items-center gap-3">
     <div class="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
       <RefreshCw class="size-4" />
     </div>
-    <div class="truncate text-sm font-semibold">Sonoscope</div>
+    <div class="text-sm font-semibold">Sonoscope</div>
+
+    <Tabs
+      value={tabValue}
+      onValueChange={(v) => { if (v) onViewChange(v as AppView); }}
+      class="ml-2 items-center"
+    >
+      <TabsList>
+        <TabsTrigger value="review">Review</TabsTrigger>
+        <TabsTrigger value="organise">Organise</TabsTrigger>
+        <TabsTrigger value="history">History</TabsTrigger>
+      </TabsList>
+    </Tabs>
   </div>
 
-  <Tabs
-    value={tabValue}
-    onValueChange={(v) => { if (v) onViewChange(v as AppView); }}
-    class="items-center"
-  >
-    <TabsList>
-      <TabsTrigger value="review">Review</TabsTrigger>
-      <TabsTrigger value="organise">Organise</TabsTrigger>
-      <TabsTrigger value="history">History</TabsTrigger>
-    </TabsList>
-  </Tabs>
-
-  <div class="flex min-w-0 items-center justify-end gap-2">
+  <div class="flex min-w-0 flex-1 items-center justify-end gap-2">
     {#if $isDiscovering}
       <Button variant="outline" size="sm" onclick={cancelScan}>
         <X />
@@ -410,11 +430,15 @@
     {/if}
 
     {#if openError}
-      <Badge variant="destructive" title={openError.detail}>{openError.summary}</Badge>
+      <Badge variant="destructive" class="min-w-0 max-w-56" title={openError.detail}>
+        <span class="truncate">{openError.summary}</span>
+      </Badge>
     {/if}
 
     {#if mlError}
-      <Badge variant="destructive" title={mlError.detail}>{mlError.summary}</Badge>
+      <Badge variant="destructive" class="min-w-0 max-w-56" title={mlError.detail}>
+        <span class="truncate">{mlError.summary}</span>
+      </Badge>
     {:else if mlModelStatus?.found}
       <Badge variant="secondary" class="gap-1" title={mlModelStatus.path}>
         <BrainCircuit class="size-3" />
@@ -424,13 +448,16 @@
       <Button
         variant="outline"
         size="sm"
+        class="w-28 shrink-0"
         onclick={downloadMlModel}
         disabled={isDownloadingMl}
-        title={mlModelStatus?.path ?? "Model cache unavailable"}
+        title={isDownloadingMl
+          ? (mlDownloadStatus ?? "Downloading")
+          : (mlModelStatus?.path ?? "Model cache unavailable")}
       >
         {#if isDownloadingMl}
-          <RefreshCw class="animate-spin" />
-          {mlDownloadStatus ?? "Downloading"}
+          <RefreshCw class="shrink-0 animate-spin" />
+          {mlDownloadPercent !== null ? `ML ${mlDownloadPercent}%` : "ML model"}
         {:else}
           <Download />
           ML model
@@ -439,7 +466,7 @@
     {/if}
 
     {#if $isDiscovering || $isAnalyzing}
-      <div class="flex w-36 flex-col gap-1">
+      <div class="flex w-36 shrink-0 flex-col gap-1">
         <Badge variant="secondary">
           {$isDiscovering
             ? `${$discoveryCount} discovered`
@@ -452,10 +479,10 @@
     {/if}
 
     {#if $currentLibrary}
-      <div class="flex w-44">
+      <div class="flex shrink-0">
         <Button
           size="sm"
-          class="w-full rounded-r-none"
+          class="whitespace-nowrap rounded-r-none"
           onclick={startScanAndAnalysis}
           disabled={$isDiscovering || $isAnalyzing}
         >
@@ -485,11 +512,11 @@
       </div>
     {/if}
 
-    <div class="flex">
+    <div class="flex min-w-0">
       <Button
         variant="outline"
         size="sm"
-        class="max-w-48 rounded-r-none border-r-0"
+        class="min-w-0 max-w-48 rounded-r-none border-r-0"
         onclick={$currentLibrary ? undefined : pickLibrary}
         title={$currentLibrary?.root_path ?? "Open library"}
       >

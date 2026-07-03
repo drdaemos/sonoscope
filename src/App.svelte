@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { Boxes, History, ListMusic } from "@lucide/svelte";
+  import Boxes from "@lucide/svelte/icons/boxes";
+  import History from "@lucide/svelte/icons/history";
+  import ListMusic from "@lucide/svelte/icons/list-music";
   import { onMount } from "svelte";
   import FileList from "$lib/components/FileList.svelte";
   import FilterSidebar from "$lib/components/FilterSidebar.svelte";
@@ -7,15 +9,17 @@
   import PlaybackFooter from "$lib/components/PlaybackFooter.svelte";
   import { Badge, Card, CardHeader, CardTitle, CardContent, Separator } from "$lib/components/ui";
   import { currentLibrary, samples, tagDimensions } from "$lib/stores/library";
-  import { makeMockLibrary, makeMockSamples, makeMockTagDimensions } from "$lib/dev/mockReview";
 
   let activeView: AppView = "review";
 
-  onMount(() => {
+  onMount(async () => {
     if (!import.meta.env.DEV) return;
     const params = new URLSearchParams(window.location.search);
     if (!params.has("mockReview")) return;
 
+    const { makeMockLibrary, makeMockSamples, makeMockTagDimensions } = await import(
+      "$lib/dev/mockReview"
+    );
     currentLibrary.set(makeMockLibrary());
     tagDimensions.set(makeMockTagDimensions());
     samples.set(makeMockSamples());
