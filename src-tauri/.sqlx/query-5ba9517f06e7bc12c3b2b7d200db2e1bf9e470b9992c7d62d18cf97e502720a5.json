@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO operation_batches (created_at, pattern, mode, file_count, status)\n         VALUES (?, ?, ?, 0, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "5ba9517f06e7bc12c3b2b7d200db2e1bf9e470b9992c7d62d18cf97e502720a5"
+}

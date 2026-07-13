@@ -9,7 +9,7 @@ export const commands = {
 	openLibrary: (path: string) => typedError<LibraryMeta, CommandError>(__TAURI_INVOKE("open_library", { path })),
 	startDiscovery: () => typedError<null, CommandError>(__TAURI_INVOKE("start_discovery")),
 	cancelDiscovery: () => typedError<null, CommandError>(__TAURI_INVOKE("cancel_discovery")),
-	startAnalysis: (reanalyze: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("start_analysis", { reanalyze })),
+	startAnalysis: (scope: AnalysisScope) => typedError<null, CommandError>(__TAURI_INVOKE("start_analysis", { scope })),
 	cancelAnalysis: () => typedError<null, CommandError>(__TAURI_INVOKE("cancel_analysis")),
 	getSamples: () => typedError<SampleRow[], CommandError>(__TAURI_INVOKE("get_samples")),
 	getSample: (sampleId: SampleId) => typedError<SampleRow, CommandError>(__TAURI_INVOKE("get_sample", { sampleId })),
@@ -21,10 +21,31 @@ export const commands = {
 	getSamplePlayback: (sampleId: SampleId) => typedError<PlaybackSample, CommandError>(__TAURI_INVOKE("get_sample_playback", { sampleId })),
 	getMlModelStatus: () => typedError<MlModelStatus, CommandError>(__TAURI_INVOKE("get_ml_model_status")),
 	downloadMlModel: () => typedError<MlModelStatus, CommandError>(__TAURI_INVOKE("download_ml_model")),
+	previewOrganise: (pattern: string, sampleIds: SampleId[] | null) => typedError<OrganisePreview, CommandError>(__TAURI_INVOKE("preview_organise", { pattern, sampleIds })),
+	applyOrganise: (pattern: string, mode: OrganiseMode, destination: string | null, sampleIds: SampleId[] | null) => typedError<OrganiseApplyResult, CommandError>(__TAURI_INVOKE("apply_organise", { pattern, mode, destination, sampleIds })),
+	rollbackOperationBatch: (batchId: BatchId) => typedError<RollbackResult, CommandError>(__TAURI_INVOKE("rollback_operation_batch", { batchId })),
+	listOperationBatches: () => typedError<OperationBatch[], CommandError>(__TAURI_INVOKE("list_operation_batches")),
+	listOrganisationPresets: () => typedError<OrganisationPreset[], CommandError>(__TAURI_INVOKE("list_organisation_presets")),
+	saveOrganisationPreset: (name: string, pattern: string) => typedError<OrganisationPreset, CommandError>(__TAURI_INVOKE("save_organisation_preset", { name, pattern })),
+	deleteOrganisationPreset: (presetId: PresetId) => typedError<null, CommandError>(__TAURI_INVOKE("delete_organisation_preset", { presetId })),
 };
 
 /* Types */
+/**  Which samples an analysis run should requeue before processing. */
+export type AnalysisScope = 
+/**  Analyse only samples already marked pending. */
+"pending" | 
+/**  Requeue samples missing a Type or Instrument tag, then analyse. */
+"untagged" | 
+/**  Requeue every sample, then analyse. */
+"all";
+
 export type AnalysisStatus = "pending" | "analysing" | "done" | "failed";
+
+/**  Operation batch identifier, same convention as [`SampleId`]. */
+export type BatchId = number;
+
+export type BatchStatus = "completed" | "rolled_back";
 
 export type CommandError = ({ Database: string }) & { Analysis?: never; DiscoveryCancelled?: never; Io?: never; Other?: never } | ({ Io: string }) & { Analysis?: never; Database?: never; DiscoveryCancelled?: never; Other?: never } | "NoLibraryOpen" | ({ Analysis: string }) & { Database?: never; DiscoveryCancelled?: never; Io?: never; Other?: never } | ({ DiscoveryCancelled: {
 	count: number,
@@ -46,6 +67,53 @@ export type MlModelStatus = {
 	size_bytes: number,
 };
 
+export type OperationBatch = {
+	id: number,
+	created_at: number,
+	pattern: string,
+	mode: OrganiseMode,
+	file_count: number,
+	status: BatchStatus,
+};
+
+export type OrganisationPreset = {
+	id: number,
+	name: string,
+	pattern: string,
+	is_system: boolean,
+};
+
+export type OrganiseApplyResult = {
+	batch_id: number | null,
+	processed: number,
+	skipped: number,
+	total: number,
+	/**  First few per-file error messages, for surfacing in the UI. */
+	errors: string[],
+};
+
+export type OrganiseMode = "move" | "copy";
+
+export type OrganisePlanEntry = {
+	sample_id: number,
+	from: string,
+	to: string,
+	/**  The sample is missing a tag required by the pattern and falls back to `_untagged`. */
+	untagged: boolean,
+	/**  Another sample in the same plan resolves to the same target path. */
+	conflict: boolean,
+	/**  The sample is already at its target path (relevant in move mode). */
+	unchanged: boolean,
+};
+
+export type OrganisePreview = {
+	entries: OrganisePlanEntry[],
+	total: number,
+	untagged_count: number,
+	conflict_count: number,
+	unchanged_count: number,
+};
+
 export type PlaybackSample = {
 	id: number,
 	filename: string,
@@ -53,6 +121,14 @@ export type PlaybackSample = {
 	duration_ms: number | null,
 	waveform_data: number[] | null,
 	is_loop: boolean,
+};
+
+/**  Organisation preset identifier, same convention as [`SampleId`]. */
+export type PresetId = number;
+
+export type RollbackResult = {
+	restored: number,
+	skipped: number,
 };
 
 /**

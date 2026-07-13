@@ -129,6 +129,13 @@ def test_heuristic_avoids_partial_token_matches(path: str, unexpected: tuple[str
         ("Loops/strings/string_loop_Am.wav", ("Instrument", "strings")),
         ("Loops/cymbals/BFTF_-_Crash_Tape_Funk_07.wav", ("Instrument", "cymbal")),
         ("Loops/ride/BFTF_-_Ride_Tape_Funk_02.wav", ("Instrument", "cymbal")),
+        # --- full drum kit tokens ---
+        ("Loops/JAFUNK_120_drum_loop_thump_bottoms.wav", ("Instrument", "drums")),
+        ("Loops/JAFUNK_120_drum_loop_thump_bottoms.wav", ("Type", "loop")),
+        ("Drums/kits/drum_kit_groove_98.wav", ("Instrument", "drums")),
+        ("Drums/full/live_drums_take3.wav", ("Instrument", "drums")),
+        ("Breaks/amen_breakbeat_170.wav", ("Instrument", "drums")),
+        ("Drums/breaks/BB3_100_drum_break_paprika.wav", ("Instrument", "drums")),
         # --- expanded percussion tokens ---
         ("Perc/shaker_loop.wav", ("Instrument", "percussion")),
         ("Perc/tambourine_hit.wav", ("Instrument", "percussion")),

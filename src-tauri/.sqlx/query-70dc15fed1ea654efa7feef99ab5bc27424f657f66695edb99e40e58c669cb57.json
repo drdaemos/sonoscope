@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO file_operations\n         (batch_id, sample_id, operation_type, original_path, new_path, executed_at)\n         VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "70dc15fed1ea654efa7feef99ab5bc27424f657f66695edb99e40e58c669cb57"
+}

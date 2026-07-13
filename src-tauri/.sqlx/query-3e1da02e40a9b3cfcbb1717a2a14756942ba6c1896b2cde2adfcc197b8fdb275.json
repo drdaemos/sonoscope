@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM organisation_presets WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "3e1da02e40a9b3cfcbb1717a2a14756942ba6c1896b2cde2adfcc197b8fdb275"
+}

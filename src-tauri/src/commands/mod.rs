@@ -3,6 +3,10 @@ use crate::db;
 use crate::error::{AnalysisStatus, CommandError, DimensionValueType, TagSource};
 use crate::library::{discover, open};
 use crate::models::{self, MlModelStatus};
+use crate::organise::{
+    self, OperationBatch, OrganisationPreset, OrganiseApplyResult, OrganiseMode, OrganisePreview,
+    RollbackResult,
+};
 use crate::state::AppState;
 use crate::tags;
 use serde::{Deserialize, Serialize};
@@ -23,6 +27,16 @@ pub use crate::tags::{clear_user_tag_for_dimension, write_user_tag};
 #[derive(Debug, Clone, Copy, Deserialize, Type)]
 #[specta(transparent)]
 pub struct SampleId(#[specta(type = Number<i64>)] pub i64);
+
+/// Operation batch identifier, same convention as [`SampleId`].
+#[derive(Debug, Clone, Copy, Deserialize, Type)]
+#[specta(transparent)]
+pub struct BatchId(#[specta(type = Number<i64>)] pub i64);
+
+/// Organisation preset identifier, same convention as [`SampleId`].
+#[derive(Debug, Clone, Copy, Deserialize, Type)]
+#[specta(transparent)]
+pub struct PresetId(#[specta(type = Number<i64>)] pub i64);
 
 #[derive(Debug, Serialize, Type)]
 pub struct SampleRow {
@@ -172,7 +186,7 @@ pub async fn cancel_discovery(state: State<'_, AppState>) -> Result<(), CommandE
 #[tauri::command]
 #[specta::specta]
 pub async fn start_analysis(
-    reanalyze: bool,
+    scope: analysis::AnalysisScope,
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<(), CommandError> {
@@ -182,8 +196,12 @@ pub async fn start_analysis(
 
     tokio::spawn(async move {
         let result = async {
-            if reanalyze {
-                analysis::requeue_all_samples(&pool).await?;
+            match scope {
+                analysis::AnalysisScope::Pending => {}
+                analysis::AnalysisScope::Untagged => {
+                    analysis::requeue_untagged_samples(&pool).await?
+                }
+                analysis::AnalysisScope::All => analysis::requeue_all_samples(&pool).await?,
             }
             analysis::run_pending_analysis(&pool, app.clone(), cancellation).await
         }
@@ -616,6 +634,107 @@ pub async fn tag_dimensions(pool: &sqlx::SqlitePool) -> Result<Vec<TagDimension>
                 .unwrap_or_default(),
         })
         .collect())
+}
+
+fn sample_id_values(sample_ids: Option<Vec<SampleId>>) -> Option<Vec<i64>> {
+    sample_ids.map(|ids| ids.into_iter().map(|id| id.0).collect())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_organise(
+    pattern: String,
+    sample_ids: Option<Vec<SampleId>>,
+    state: State<'_, AppState>,
+) -> Result<OrganisePreview, CommandError> {
+    let pool = pool_from_state(&state).await?;
+    let ids = sample_id_values(sample_ids);
+    organise::preview_organise(&pool, &pattern, ids.as_deref()).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn apply_organise(
+    pattern: String,
+    mode: OrganiseMode,
+    destination: Option<String>,
+    sample_ids: Option<Vec<SampleId>>,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<OrganiseApplyResult, CommandError> {
+    let pool = pool_from_state(&state).await?;
+    let library_root = {
+        let guard = state.library_root.lock().await;
+        guard.as_ref().ok_or(CommandError::NoLibraryOpen)?.clone()
+    };
+    let ids = sample_id_values(sample_ids);
+    let destination = destination.map(PathBuf::from);
+
+    organise::apply_organise(
+        &pool,
+        &library_root,
+        &pattern,
+        mode,
+        destination.as_deref(),
+        ids.as_deref(),
+        |done, total| {
+            app.emit(
+                "organise-progress",
+                serde_json::json!({ "done": done, "total": total }),
+            )
+            .ok();
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn rollback_operation_batch(
+    batch_id: BatchId,
+    state: State<'_, AppState>,
+) -> Result<RollbackResult, CommandError> {
+    let pool = pool_from_state(&state).await?;
+    organise::rollback_batch(&pool, batch_id.0).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_operation_batches(
+    state: State<'_, AppState>,
+) -> Result<Vec<OperationBatch>, CommandError> {
+    let pool = pool_from_state(&state).await?;
+    organise::list_batches(&pool).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_organisation_presets(
+    state: State<'_, AppState>,
+) -> Result<Vec<OrganisationPreset>, CommandError> {
+    let pool = pool_from_state(&state).await?;
+    organise::list_presets(&pool).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn save_organisation_preset(
+    name: String,
+    pattern: String,
+    state: State<'_, AppState>,
+) -> Result<OrganisationPreset, CommandError> {
+    let pool = pool_from_state(&state).await?;
+    organise::save_preset(&pool, &name, &pattern).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_organisation_preset(
+    preset_id: PresetId,
+    state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    let pool = pool_from_state(&state).await?;
+    organise::delete_preset(&pool, preset_id.0).await
 }
 
 #[cfg(test)]

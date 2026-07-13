@@ -9,6 +9,8 @@
     filterOptions,
     toggleFilterValue,
     unanalysedOnly,
+    untaggedCounts,
+    UNTAGGED_FILTER_VALUE,
   } from "$lib/stores/review";
   import { currentLibrary } from "$lib/stores/library";
 
@@ -35,6 +37,7 @@
   <div class="min-h-0 flex-1 space-y-3 overflow-auto p-3">
     {#each dimensions as dimension}
       {@const options = [...($filterOptions.get(dimension)?.entries() ?? [])].sort()}
+      {@const untagged = $untaggedCounts.get(dimension) ?? 0}
       {#if options.length > 0}
         <section>
           <div class="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
@@ -59,6 +62,11 @@
                 {value} {count}
               </ToggleGroupItem>
             {/each}
+            {#if untagged > 0}
+              <ToggleGroupItem value={UNTAGGED_FILTER_VALUE} class="text-xs italic">
+                (untagged) {untagged}
+              </ToggleGroupItem>
+            {/if}
           </ToggleGroup>
         </section>
       {/if}

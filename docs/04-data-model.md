@@ -191,10 +191,12 @@ Saved organisation pattern presets.
 On library creation the following rows are inserted:
 
 **dimensions + dimension_values (system):**
-- Type: `loop`, `one-shot`
-- Instrument: `kick`, `snare`, `hi-hat`, `clap`, `percussion`, `bass`, `chord`, `pad`, `synth`, `lead`, `vocal`, `fx`, `foley`
+- Type: `loop`, `one-shot`, `fill`, `break`, `texture`
+- Instrument: `kick`, `snare`, `hi-hat`, `clap`, `cymbal`, `percussion`, `tops`, `drums`, `bass`, `chord`, `pad`, `synth`, `lead`, `vocal`, `fx`, `foley`, `guitar`, `piano`, `brass`, `woodwind`, `strings`
 - Key: chromatic notes A–G with sharps/flats
 - Mode: `major`, `minor`
+
+`drums` is the full-kit value: it covers drum loops, breaks, and kit grooves that are not a single drum hit, so `{Instrument}` patterns have a home for them.
 
 **organisation_presets (system):**
 - "Type / Instrument" → `{Type}/{Instrument}`

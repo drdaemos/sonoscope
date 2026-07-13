@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: i64\", name, pattern, is_system as \"is_system: bool\"\n         FROM organisation_presets WHERE name = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "pattern",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_system: bool",
+        "ordinal": 3,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0ecf353c2ff48215845e6d6d6320214861f305edbd7b6e0bc9925deddc575648"
+}

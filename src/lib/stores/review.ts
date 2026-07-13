@@ -5,6 +5,10 @@ export type SortKey = "filename" | "relative_path" | `dimension:${string}`;
 export type SortDirection = "asc" | "desc";
 export type DimensionFilter = Record<string, string[]>;
 
+/// Sentinel filter value that matches samples with no tag on a dimension.
+/// Lets the user isolate files the organise pattern would send to _untagged.
+export const UNTAGGED_FILTER_VALUE = "__untagged__";
+
 const sortCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: "base",
@@ -75,7 +79,10 @@ export const visibleSamples = derived(
       for (const [dimension, activeValues] of Object.entries($dimensionFilters)) {
         if (activeValues.length === 0) continue;
         const sampleValues = tagValues(sample, dimension);
-        if (!activeValues.some((value) => sampleValues.includes(value))) return false;
+        const matchesUntagged =
+          activeValues.includes(UNTAGGED_FILTER_VALUE) && sampleValues.length === 0;
+        if (!matchesUntagged && !activeValues.some((value) => sampleValues.includes(value)))
+          return false;
       }
 
       return true;
@@ -111,6 +118,20 @@ export const filterOptions = derived([samples, tagDimensions], ([$samples, $tagD
     }
   }
   return options;
+});
+
+/// Number of samples with no tag at all on each filterable dimension.
+/// Dimensions where every sample is tagged are omitted.
+export const untaggedCounts = derived([samples, tagDimensions], ([$samples, $tagDimensions]) => {
+  const counts = new Map<string, number>();
+  const filterableDimensions = $tagDimensions
+    .filter((dimension) => ["enum", "multi_enum"].includes(dimension.value_type))
+    .map((dimension) => dimension.name);
+  for (const dimension of filterableDimensions) {
+    const count = $samples.filter((sample) => tagValues(sample, dimension).length === 0).length;
+    if (count > 0) counts.set(dimension, count);
+  }
+  return counts;
 });
 
 export function tagValues(sample: SampleRow, dimension: string): string[] {

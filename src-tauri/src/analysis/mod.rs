@@ -342,11 +342,47 @@ fn analysis_batch_size() -> usize {
         .unwrap_or(DEFAULT_ANALYSIS_BATCH_SIZE)
 }
 
+/// Which samples an analysis run should requeue before processing.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalysisScope {
+    /// Analyse only samples already marked pending.
+    Pending,
+    /// Requeue samples missing a Type or Instrument tag, then analyse.
+    Untagged,
+    /// Requeue every sample, then analyse.
+    All,
+}
+
 pub async fn requeue_all_samples(pool: &SqlitePool) -> Result<(), CommandError> {
     let pending = AnalysisStatus::Pending;
     sqlx::query!("UPDATE samples SET analysis_status = ?", pending)
         .execute(pool)
         .await?;
+    Ok(())
+}
+
+/// Requeue samples that are missing a Type tag or an Instrument tag (from any
+/// source), so a vocabulary or model update can fill the gaps without
+/// re-analysing the whole library.
+pub async fn requeue_untagged_samples(pool: &SqlitePool) -> Result<(), CommandError> {
+    let pending = AnalysisStatus::Pending;
+    sqlx::query!(
+        "UPDATE samples SET analysis_status = ?
+         WHERE id NOT IN (
+             SELECT t.sample_id FROM tags t
+             JOIN dimensions d ON d.id = t.dimension_id
+             WHERE d.name = 'Type'
+         )
+         OR id NOT IN (
+             SELECT t.sample_id FROM tags t
+             JOIN dimensions d ON d.id = t.dimension_id
+             WHERE d.name = 'Instrument'
+         )",
+        pending,
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

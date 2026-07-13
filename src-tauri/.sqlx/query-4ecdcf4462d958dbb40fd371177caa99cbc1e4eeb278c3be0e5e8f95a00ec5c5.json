@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO organisation_presets (name, pattern, is_system, created_at)\n         VALUES (?, ?, 0, ?)\n         ON CONFLICT(name) DO UPDATE SET pattern = excluded.pattern",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "4ecdcf4462d958dbb40fd371177caa99cbc1e4eeb278c3be0e5e8f95a00ec5c5"
+}

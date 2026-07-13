@@ -110,6 +110,7 @@ async fn test_tag_dimensions_lists_seeded_values() {
         .find(|dimension| dimension.name == "Instrument")
         .expect("Instrument dimension should be present");
     assert!(instrument_dimension.values.contains(&"tops".to_string()));
+    assert!(instrument_dimension.values.contains(&"drums".to_string()));
 
     let tempo_dimension = dimensions
         .iter()
@@ -644,4 +645,59 @@ async fn test_sample_rows_returns_tags_and_conflicts_in_bulk() {
         .unwrap();
     assert_eq!(single.len(), 1);
     assert_eq!(single[0].candidates.len(), 2);
+}
+
+#[tokio::test]
+async fn test_requeue_untagged_samples_targets_missing_type_or_instrument() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("tagged.wav"), b"fake").unwrap();
+    fs::write(dir.path().join("type_only.wav"), b"fake").unwrap();
+    fs::write(dir.path().join("mystery.wav"), b"fake").unwrap();
+
+    let pool = make_pool(&dir).await;
+    sonoscope_lib::library::open::open_or_create_library(dir.path().to_str().unwrap(), &pool)
+        .await
+        .unwrap();
+    sonoscope_lib::library::discover::run_discovery(dir.path(), &pool, |_| {})
+        .await
+        .unwrap();
+    sqlx::query("UPDATE samples SET analysis_status = 'done'")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let (tagged_id,): (i64,) = sqlx::query_as("SELECT id FROM samples WHERE filename = 'tagged.wav'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let (type_only_id,): (i64,) =
+        sqlx::query_as("SELECT id FROM samples WHERE filename = 'type_only.wav'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    sonoscope_lib::commands::write_user_tag(&pool, tagged_id, "Type", "loop")
+        .await
+        .unwrap();
+    sonoscope_lib::commands::write_user_tag(&pool, tagged_id, "Instrument", "drums")
+        .await
+        .unwrap();
+    sonoscope_lib::commands::write_user_tag(&pool, type_only_id, "Type", "loop")
+        .await
+        .unwrap();
+
+    sonoscope_lib::analysis::requeue_untagged_samples(&pool)
+        .await
+        .unwrap();
+
+    let pending: Vec<(String,)> = sqlx::query_as(
+        "SELECT filename FROM samples WHERE analysis_status = 'pending' ORDER BY filename",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        pending,
+        vec![("mystery.wav".to_string(),), ("type_only.wav".to_string(),)],
+        "samples missing Type or Instrument are requeued; fully tagged samples stay done"
+    );
 }

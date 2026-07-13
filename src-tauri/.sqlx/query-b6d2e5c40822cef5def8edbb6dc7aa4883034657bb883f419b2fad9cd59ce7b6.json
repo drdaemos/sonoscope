@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT mode as \"mode: OrganiseMode\", status as \"status: BatchStatus\"\n         FROM operation_batches WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "mode: OrganiseMode",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "status: BatchStatus",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b6d2e5c40822cef5def8edbb6dc7aa4883034657bb883f419b2fad9cd59ce7b6"
+}

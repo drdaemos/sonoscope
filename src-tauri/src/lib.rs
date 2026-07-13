@@ -4,6 +4,7 @@ pub mod db;
 pub mod error;
 pub mod library;
 pub mod models;
+pub mod organise;
 mod state;
 pub mod tags;
 
@@ -31,6 +32,13 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::get_sample_playback,
         commands::get_ml_model_status,
         commands::download_ml_model,
+        commands::preview_organise,
+        commands::apply_organise,
+        commands::rollback_operation_batch,
+        commands::list_operation_batches,
+        commands::list_organisation_presets,
+        commands::save_organisation_preset,
+        commands::delete_organisation_preset,
     ])
 }
 

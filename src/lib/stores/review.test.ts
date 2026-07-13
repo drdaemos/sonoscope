@@ -22,6 +22,8 @@ import {
   toggleFilterValue,
   toggleSelection,
   unanalysedOnly,
+  untaggedCounts,
+  UNTAGGED_FILTER_VALUE,
   visibleSamples,
 } from "$lib/stores/review";
 import { makeConflict, makeSample, makeTag, resetIdCounter } from "../../test/fixtures";
@@ -72,6 +74,28 @@ describe("visibleSamples filtering", () => {
       makeSample({ tags: [makeTag({ dimension: "Type", value: "loop" })] }),
     ]);
     toggleFilterValue("Type", "loop");
+    expect(get(visibleSamples)).toHaveLength(2);
+  });
+
+  it("filters samples with no tag on a dimension via the untagged sentinel", () => {
+    const untagged = makeSample({ tags: [makeTag({ dimension: "Instrument", value: "kick" })] });
+    samples.set([
+      makeSample({ tags: [makeTag({ dimension: "Type", value: "loop" })] }),
+      untagged,
+      makeSample({ tags: [makeTag({ dimension: "Type", value: "one-shot" })] }),
+    ]);
+    toggleFilterValue("Type", UNTAGGED_FILTER_VALUE);
+    expect(get(visibleSamples)).toEqual([untagged]);
+  });
+
+  it("combines the untagged sentinel with value filters as OR", () => {
+    samples.set([
+      makeSample({ tags: [makeTag({ dimension: "Type", value: "loop" })] }),
+      makeSample({ tags: [] }),
+      makeSample({ tags: [makeTag({ dimension: "Type", value: "one-shot" })] }),
+    ]);
+    toggleFilterValue("Type", "loop");
+    toggleFilterValue("Type", UNTAGGED_FILTER_VALUE);
     expect(get(visibleSamples)).toHaveLength(2);
   });
 
@@ -332,5 +356,30 @@ describe("tag helpers", () => {
   it("hasConflict returns true when conflicts exist", () => {
     expect(hasConflict(makeSample({ conflicts: [makeConflict()] }))).toBe(true);
     expect(hasConflict(makeSample({ conflicts: [] }))).toBe(false);
+  });
+});
+
+describe("untaggedCounts", () => {
+  it("counts samples with no tag per filterable dimension", () => {
+    samples.set([
+      makeSample({ tags: [makeTag({ dimension: "Type", value: "loop" })] }),
+      makeSample({ tags: [makeTag({ dimension: "Instrument", value: "kick" })] }),
+      makeSample({ tags: [] }),
+    ]);
+    const counts = get(untaggedCounts);
+    expect(counts.get("Type")).toBe(2);
+    expect(counts.get("Instrument")).toBe(2);
+    expect(counts.get("Key")).toBe(3);
+  });
+
+  it("omits dimensions where every sample is tagged", () => {
+    samples.set([makeSample({ tags: [makeTag({ dimension: "Type", value: "loop" })] })]);
+    expect(get(untaggedCounts).has("Type")).toBe(false);
+  });
+
+  it("skips numeric dimensions", () => {
+    tagDimensions.set([{ name: "Tempo", value_type: "numeric", values: [] }]);
+    samples.set([makeSample({ tags: [] })]);
+    expect(get(untaggedCounts).size).toBe(0);
   });
 });

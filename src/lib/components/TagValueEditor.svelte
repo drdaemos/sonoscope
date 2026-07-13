@@ -6,11 +6,11 @@
   type Props = {
     dimension: TagDimension;
     value: string;
-    label: string;
+    label?: string;
     onValueChange: (value: string) => void;
     onSave: () => void | Promise<void>;
     onClear: () => void | Promise<void>;
-    onCancel: () => void;
+    onCancel?: () => void;
   };
 
   let { dimension, value, label, onValueChange, onSave, onClear, onCancel }: Props = $props();
@@ -20,7 +20,9 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-2">
-  <span class="text-sm font-medium">{label}</span>
+  {#if label}
+    <span class="text-sm font-medium">{label}</span>
+  {/if}
 
   {#if isOptionDimension}
     <Select
@@ -57,5 +59,7 @@
 
   <Button size="sm" onclick={onSave} disabled={!canSave}>Save</Button>
   <Button variant="outline" size="sm" onclick={onClear}>Clear user tag</Button>
-  <Button variant="ghost" size="sm" onclick={onCancel}>Cancel</Button>
+  {#if onCancel}
+    <Button variant="ghost" size="sm" onclick={onCancel}>Cancel</Button>
+  {/if}
 </div>

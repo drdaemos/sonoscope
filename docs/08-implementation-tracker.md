@@ -75,8 +75,8 @@ Goal: files are analyzed by filename heuristics; tags appear in the list.
 | Metadata extraction | Implemented | Mutagen + SoundFile coverage in `analyzer/tests/test_metadata.py`. |
 | Rust sidecar process manager | In progress | Long-lived uv-managed analyzer client exists, sends batch-first IPC requests, and has an ignored Rust integration test that passes when explicitly run with process-spawn access. Response reads are guarded by a configurable timeout (`SONOSCOPE_ANALYZER_TIMEOUT_SECS`), and the sidecar is killed and respawned after a failed batch so a desynchronized pipe cannot stall later batches. The analyzer guarantees one response line per request (per-request error isolation; batch validation failures answer entry-for-entry), covered by `analyzer/tests/test_main.py`. |
 | Tags schema migration | Implemented | `src-tauri/migrations/002_tags.sql`, `003_expanded_tag_values.sql`, and `004_primary_tags.sql`. |
-| Seed system dimensions/values | Implemented | Covered by `test_open_seeds_system_tag_dimensions`; includes the expanded heuristic Type/Instrument vocabulary. |
-| Analysis orchestrator | Implemented | Queues pending samples, dispatches configurable sidecar batches, persists auto-tags per sample in one transaction using a preloaded dimension lookup, marks auto-primary tags via the shared `tags` module, and updates status. Re-scan now analyses only pending samples; a header menu action (`Re-analyse all samples`) requeues the full library. Supports cancellation (`cancel_analysis`) and emits `analysis-cancelled`/`analysis-failed` events surfaced in the UI. |
+| Seed system dimensions/values | Implemented | Covered by `test_open_seeds_system_tag_dimensions`; includes the expanded heuristic Type/Instrument vocabulary. Migration `008_drums_instrument.sql` adds the full-kit `drums` Instrument value (heuristic tokens, CLAP prompts, and embedded-genre mapping updated to match). |
+| Analysis orchestrator | Implemented | Queues pending samples, dispatches configurable sidecar batches, persists auto-tags per sample in one transaction using a preloaded dimension lookup, marks auto-primary tags via the shared `tags` module, and updates status. Re-scan now analyses only pending samples; `start_analysis` takes a typed scope (`pending` \| `untagged` \| `all`), and header menu actions requeue either the full library (`Re-analyse all samples`) or only samples missing a Type or Instrument tag (`Re-analyse untagged samples`, covered by `test_requeue_untagged_samples_targets_missing_type_or_instrument`). Supports cancellation (`cancel_analysis`) and emits `analysis-cancelled`/`analysis-failed` events surfaced in the UI. |
 | Tag columns in file list | Implemented | Type + Instrument chips are shown in `FileList.svelte`. |
 | Analysis progress badge | Implemented | Header uses one scan/analyze pipeline action with progress state; completed libraries show `Re-scan` and requeue samples for analysis. |
 
@@ -86,12 +86,12 @@ Goal: user can review and edit tags; filtering and search work.
 
 | Feature | Status | Notes / Verification |
 |---|---|---|
-| Filter sidebar | Implemented | Dimension chips with counts for Type, Instrument, and Key in `FilterSidebar.svelte`; verified by `npm run check` and `npm run build`. |
+| Filter sidebar | Implemented | Dimension chips with counts for Type, Instrument, and Key in `FilterSidebar.svelte`; each dimension also offers an "(untagged)" chip (sentinel value in `review.ts`) matching samples with no tag on that dimension, so files headed for `_untagged` can be isolated and bulk-tagged. Verified by `review.test.ts`, `npm run check`, and `npm run build`. |
 | Filename search | Implemented | Real-time filename substring filter in `src/lib/stores/review.ts`; verified by `npm run check` and `npm run build`. |
 | Sortable columns | Implemented | Sample and tag-dimension sorting in `FileList.svelte`; review rows now use deterministic fixed-height virtualization to avoid stale measurement state across filter changes; verified by `npm run check`, `npm run test`, and `npm run build`. |
-| Inline tag editing | Implemented | Reusable tag editor supports enum, multi-enum, and numeric dimensions from typed dimension metadata; covered by `TagValueEditor.test.ts`, `npm run check`, and `npm run build`. |
-| Bulk tag editor | Implemented | Multi-select action bar uses typed dimension metadata for all editable enum, multi-enum, and numeric dimensions; row drag selection selects or deselects along a single drag path based on the starting row. Bulk edits go through single typed `set_user_tag_bulk`/`clear_user_tag_bulk` commands, and tag-edit failures are surfaced in the review UI; verified by `npm run check` and `npm run test`. |
-| Sample details and conflict decisions | Implemented | Review rows use an info/warning icon button instead of a conflict column. The modal shows file metadata, ML detections, all gathered tag evidence, and inline conflict choices; covered by `SampleDetailsDialog.test.ts`. |
+| Inline tag editing | Implemented | Reusable tag editor supports enum, multi-enum, and numeric dimensions from typed dimension metadata; tag cells show a hover affordance and tooltip so single-row editing is discoverable. Covered by `TagValueEditor.test.ts`, `npm run check`, and `npm run build`. |
+| Bulk tag editor | Implemented | Selection action bar appears from one selected row (single-sample tagging included) and uses typed dimension metadata for all editable enum, multi-enum, and numeric dimensions; row drag selection selects or deselects along a single drag path based on the starting row. Bulk edits go through single typed `set_user_tag_bulk`/`clear_user_tag_bulk` commands, and tag-edit failures are surfaced in the review UI; verified by `npm run check` and `npm run test`. |
+| Sample details and conflict decisions | Implemented | Review rows use an info/warning icon button instead of a conflict column. The modal shows file metadata, ML detections, all gathered tag evidence, inline conflict choices, and an Edit Tags section (dimension picker + tag editor) for tagging the sample directly; covered by `SampleDetailsDialog.test.ts`. |
 | Major/minor mode detection | Implemented | Filename and embedded key metadata emit separate `Mode` tags; CLAP prompt scoring includes major/minor mode prompts with top-1 mode output. Covered by analyzer heuristic, metadata, and classifier tests. |
 | `tags::set_user_tag` command | Implemented | Typed `set_user_tag` command and generated `commands.setUserTag`; covered by `test_user_tag_write_and_clear_preserves_auto_tags`. |
 | `tags::clear_user_tag` command | Implemented | Typed `clear_user_tag` command and generated `commands.clearUserTag`; covered by `test_user_tag_write_and_clear_preserves_auto_tags`. |
@@ -134,14 +134,15 @@ Goal: user can reorganize files and roll back.
 
 | Feature | Status | Notes / Verification |
 |---|---|---|
-| Operation history schema | Not started | Planned `operation_batches` and `file_operations`. |
-| Pattern resolver | Not started | Handles placeholders, missing tags, and sanitized path parts. |
-| Organise preview command | Not started | Typed Tauri command. |
-| Organise apply command | Not started | Move and copy modes. |
-| Rollback command | Not started | Move rollback only. |
-| Organise UI | Not started | Pattern editor, presets, mode selector, preview, apply. |
-| History UI | Not started | Batch list, rollback confirmation. |
-| File operation tests | Not started | Temp directory integration coverage. |
+| Operation history schema | Implemented | Migration `007_organise.sql`: `operation_batches`, `file_operations` (indexed by batch), and `organisation_presets` with seeded system presets. |
+| Pattern resolver | Implemented | `src-tauri/src/organise/pattern.rs`: `{Dimension}` placeholders, literal segments, `_untagged` fallback, per-segment sanitization (invalid characters, trailing dots, Windows reserved names). Unit tests in the module. |
+| Organise preview command | Implemented | Typed `preview_organise` with optional sample-id scope (used by the UI to respect active review filters); entries flag untagged fallback, in-plan target collisions, and files already at their target. Covered by `src-tauri/tests/organise_tests.rs`. |
+| Organise apply command | Implemented | Typed `apply_organise` with move and copy modes. Never overwrites: occupied targets, in-plan collisions, and no-op moves are skipped and counted. Records per-file operations, updates sample paths (move), emits `organise-progress`, and requires copy destinations to be existing folders outside the library. |
+| Rollback command | Implemented | Typed `rollback_operation_batch`; move batches only, reverses operations newest-first, restores sample paths, marks the batch `rolled_back`. Covered by `organise_tests.rs`. |
+| Preset commands | Implemented | Typed `list/save/delete_organisation_preset`; save validates the pattern and upserts by name. |
+| Organise UI | Implemented | `OrganiseView.svelte`: pattern editor with live validation (`src/lib/stores/organise.ts`), preset dropdown with save/delete, move/copy mode with folder picker, debounced preview with count badges and filtered-subset note, confirmation dialog, apply progress and summary. Preview count badges are clickable filters (untagged / name clash / unchanged) so affected files can be inspected; destination collisions are labelled "name clash" to avoid confusion with tag conflicts. |
+| History UI | Implemented | `HistoryView.svelte`: batch list (date, mode, pattern, file count, status), rollback confirmation dialog, rollback result summary. |
+| File operation tests | Implemented | `src-tauri/tests/organise_tests.rs` (13 temp-directory integration tests: preview, move, copy, filters, collisions, rollback, presets) and `src/lib/stores/organise.test.ts` (pattern validation/tokenizer). `cargo test`, `npm run test`, `npm run check`, `npm run build` all pass. |
 
 ## Phase 8 — Settings + Polish
 

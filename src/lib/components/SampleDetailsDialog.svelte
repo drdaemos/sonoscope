@@ -3,10 +3,21 @@
   import Check from "@lucide/svelte/icons/check";
   import FileAudio from "@lucide/svelte/icons/file-audio";
   import Info from "@lucide/svelte/icons/info";
+  import Pencil from "@lucide/svelte/icons/pencil";
   import Sparkles from "@lucide/svelte/icons/sparkles";
   import X from "@lucide/svelte/icons/x";
-  import { Badge, Button, Separator } from "$lib/components/ui";
-  import type { SampleRow, SampleTag } from "$lib/stores/library";
+  import { Select as SelectPrimitive } from "bits-ui";
+  import TagValueEditor from "$lib/components/TagValueEditor.svelte";
+  import {
+    Badge,
+    Button,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    Separator,
+  } from "$lib/components/ui";
+  import type { SampleRow, SampleTag, TagDimension } from "$lib/stores/library";
 
   type ConflictOption = {
     value: string;
@@ -16,15 +27,42 @@
 
   type Props = {
     sample: SampleRow;
+    editableDimensions: TagDimension[];
     onClose: () => void;
     onResolveConflict: (
       sampleId: number,
       dimension: string,
       value: string,
     ) => void | Promise<void>;
+    onSetTag: (sampleId: number, dimension: string, value: string) => void | Promise<void>;
+    onClearTag: (sampleId: number, dimension: string) => void | Promise<void>;
   };
 
-  let { sample, onClose, onResolveConflict }: Props = $props();
+  let { sample, editableDimensions, onClose, onResolveConflict, onSetTag, onClearTag }: Props =
+    $props();
+
+  let editDimensionName = $state("");
+  let editValue = $state("");
+
+  const editDimension = $derived(
+    editableDimensions.find((dimension) => dimension.name === editDimensionName),
+  );
+
+  // Keep the selected dimension valid and default the value to the sample's
+  // current primary tag for that dimension.
+  $effect(() => {
+    if (!editDimension) {
+      editDimensionName = editableDimensions[0]?.name ?? "";
+    }
+  });
+  $effect(() => {
+    const dimension = editDimension;
+    void sample.id;
+    if (!dimension) return;
+    editValue =
+      tagsForDimension(dimension.name)[0]?.value ??
+      (dimension.value_type === "numeric" ? "" : (dimension.values[0] ?? ""));
+  });
 
   let modelTags = $derived(sample.tags.filter((tag) => tag.source === "model"));
   let dimensionNames = $derived(
@@ -224,6 +262,41 @@
               </div>
             </section>
           {/if}
+
+          <section>
+            <div class="mb-3 flex items-center gap-2">
+              <Pencil class="size-4 text-muted-foreground" />
+              <h3 class="text-sm font-semibold">Edit Tags</h3>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
+              <Select
+                type="single"
+                value={editDimensionName}
+                onValueChange={(value) => {
+                  if (value) editDimensionName = value;
+                }}
+              >
+                <SelectTrigger size="sm" class="w-32">
+                  <SelectPrimitive.Value placeholder="Dimension" />
+                </SelectTrigger>
+                <SelectContent>
+                  {#each editableDimensions as dimension (dimension.name)}
+                    <SelectItem value={dimension.name}>{dimension.name}</SelectItem>
+                  {/each}
+                </SelectContent>
+              </Select>
+              {#if editDimension}
+                {@const dimension = editDimension}
+                <TagValueEditor
+                  {dimension}
+                  value={editValue}
+                  onValueChange={(value) => (editValue = value)}
+                  onSave={() => onSetTag(sample.id, dimension.name, editValue)}
+                  onClear={() => onClearTag(sample.id, dimension.name)}
+                />
+              {/if}
+            </div>
+          </section>
 
           <section>
             <div class="mb-3 flex items-center justify-between gap-3">

@@ -66,6 +66,14 @@
       "confidence": 0.85
     },
     {
+      "value": "drums",
+      "tokens": [
+        "drum", "drums", "drumloop", "drum loop", "drum loops",
+        "drumkit", "drum kit", "breakbeat", "break beat", "breakbeats"
+      ],
+      "confidence": 0.8
+    },
+    {
       "value": "bass",
       "tokens": [
         "bass", "sub", "808",

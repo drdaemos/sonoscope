@@ -5,9 +5,11 @@
   import { onMount } from "svelte";
   import FileList from "$lib/components/FileList.svelte";
   import FilterSidebar from "$lib/components/FilterSidebar.svelte";
+  import HistoryView from "$lib/components/HistoryView.svelte";
   import LibraryBar, { type AppView } from "$lib/components/LibraryBar.svelte";
+  import OrganiseView from "$lib/components/OrganiseView.svelte";
   import PlaybackFooter from "$lib/components/PlaybackFooter.svelte";
-  import { Badge, Card, CardHeader, CardTitle, CardContent, Separator } from "$lib/components/ui";
+  import { Badge, Separator } from "$lib/components/ui";
   import { currentLibrary, samples, tagDimensions } from "$lib/stores/library";
 
   let activeView: AppView = "review";
@@ -49,35 +51,13 @@
           <Boxes class="size-4 text-muted-foreground" />
           <h1 class="text-sm font-medium">Organise</h1>
         </div>
-        <div class="grid flex-1 place-items-center p-6">
-          <Card class="w-full max-w-xl">
-            <CardHeader>
-              <CardTitle>Organisation workflow</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p class="text-sm text-muted-foreground">
-                Pattern presets, preview, and apply controls will be added after tagging data exists.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <OrganiseView />
       {:else}
         <div class="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4">
           <History class="size-4 text-muted-foreground" />
           <h1 class="text-sm font-medium">History</h1>
         </div>
-        <div class="grid flex-1 place-items-center p-6">
-          <Card class="w-full max-w-xl">
-            <CardHeader>
-              <CardTitle>Operation history</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p class="text-sm text-muted-foreground">
-                Move/copy batches and rollback controls will appear here once file operations exist.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <HistoryView />
       {/if}
     </main>
   </div>

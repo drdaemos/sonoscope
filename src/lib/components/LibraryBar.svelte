@@ -7,7 +7,12 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import X from "@lucide/svelte/icons/x";
   import { onMount } from "svelte";
-  import { commands, type CommandError, type MlModelStatus } from "$lib/bindings/bindings";
+  import {
+    commands,
+    type AnalysisScope,
+    type CommandError,
+    type MlModelStatus,
+  } from "$lib/bindings/bindings";
   import {
     Badge,
     Button,
@@ -156,7 +161,7 @@
         if (result.status === "ok") samples.set(result.data);
         // Only newly discovered (pending) samples are analysed; use
         // "Re-analyse" for a full ML re-run.
-        await startAnalysis(false);
+        await startAnalysis("pending");
       }),
       listen<{ count: number }>("discovery-cancelled", (event) => {
         discoveryCount.set(event.payload.count);
@@ -186,7 +191,7 @@
     }
   }
 
-  async function startAnalysis(reanalyze: boolean) {
+  async function startAnalysis(scope: AnalysisScope) {
     stopAnalysisListeners();
     isAnalyzing.set(true);
     analysisProcessed.set(0);
@@ -228,7 +233,7 @@
       unlistenFailed();
     };
 
-    const result = await commands.startAnalysis(reanalyze);
+    const result = await commands.startAnalysis(scope);
     if (result.status === "error") {
       console.error("Failed to start analysis:", result.error);
       isAnalyzing.set(false);
@@ -504,7 +509,10 @@
             {/snippet}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onclick={() => startAnalysis(true)}>
+            <DropdownMenuItem onclick={() => startAnalysis("untagged")}>
+              Re-analyse untagged samples
+            </DropdownMenuItem>
+            <DropdownMenuItem onclick={() => startAnalysis("all")}>
               Re-analyse all samples
             </DropdownMenuItem>
           </DropdownMenuContent>

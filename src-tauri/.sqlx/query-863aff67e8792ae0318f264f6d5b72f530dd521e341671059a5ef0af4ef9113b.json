@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE samples SET analysis_status = ?\n         WHERE id NOT IN (\n             SELECT t.sample_id FROM tags t\n             JOIN dimensions d ON d.id = t.dimension_id\n             WHERE d.name = 'Type'\n         )\n         OR id NOT IN (\n             SELECT t.sample_id FROM tags t\n             JOIN dimensions d ON d.id = t.dimension_id\n             WHERE d.name = 'Instrument'\n         )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "863aff67e8792ae0318f264f6d5b72f530dd521e341671059a5ef0af4ef9113b"
+}

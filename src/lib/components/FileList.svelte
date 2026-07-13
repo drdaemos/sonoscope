@@ -290,6 +290,28 @@
     tagError = await refreshSample(sampleId);
   }
 
+  async function setSingleTag(sampleId: number, dimension: string, value: string) {
+    tagError = null;
+    const result = await commands.setUserTag(sampleId, dimension, value);
+    if (result.status === "error") {
+      console.error("Failed to set tag:", result.error);
+      tagError = `Failed to set tag: ${formatTagError(result.error)}`;
+      return;
+    }
+    tagError = await refreshSample(sampleId);
+  }
+
+  async function clearSingleTag(sampleId: number, dimension: string) {
+    tagError = null;
+    const result = await commands.clearUserTag(sampleId, dimension);
+    if (result.status === "error") {
+      console.error("Failed to clear tag:", result.error);
+      tagError = `Failed to clear tag: ${formatTagError(result.error)}`;
+      return;
+    }
+    tagError = await refreshSample(sampleId);
+  }
+
   function openSampleDetails(sampleId: number) {
     detailsSampleId = sampleId;
   }
@@ -497,7 +519,8 @@
                   <div class="min-w-0 overflow-hidden px-3 py-1.5">
                     <button
                       type="button"
-                      class="flex max-w-full flex-nowrap gap-1 overflow-hidden text-left"
+                      class="-mx-1 flex max-w-full flex-nowrap gap-1 overflow-hidden rounded px-1 py-0.5 text-left hover:bg-muted"
+                      title={`Edit ${dimension.name}`}
                       onclick={() => startEditing(sample, dimension)}
                     >
                       {#each displayTags(sample, dimension.name) as tag}
@@ -522,12 +545,15 @@
       {#if detailsSample}
         <SampleDetailsDialog
           sample={detailsSample}
+          editableDimensions={editableTagDimensions}
           onResolveConflict={resolveConflict}
+          onSetTag={setSingleTag}
+          onClearTag={clearSingleTag}
           onClose={() => (detailsSampleId = null)}
         />
       {/if}
 
-      {#if selectedCount > 1}
+      {#if selectedCount > 0}
         <div class="absolute bottom-3 left-3 z-20 flex h-10 items-center gap-2 rounded-md border bg-background px-3 shadow-sm">
           <span class="w-20 text-sm font-medium">{selectedCount} selected</span>
 

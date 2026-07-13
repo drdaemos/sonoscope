@@ -71,6 +71,16 @@
     },
     {
       "dimension": "Instrument",
+      "value": "drums",
+      "prompts": [
+        "a full drum kit loop",
+        "a drum break with kick, snare and hi-hats",
+        "an acoustic drum kit groove"
+      ],
+      "min_confidence": 0.12
+    },
+    {
+      "dimension": "Instrument",
       "value": "bass",
       "prompts": [
         "a bass guitar sample",

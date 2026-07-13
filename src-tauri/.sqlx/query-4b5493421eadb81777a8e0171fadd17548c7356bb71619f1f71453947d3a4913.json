@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE samples SET path = ?, relative_path = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "4b5493421eadb81777a8e0171fadd17548c7356bb71619f1f71453947d3a4913"
+}

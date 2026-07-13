@@ -18,8 +18,8 @@ KEY_RE = re.compile(r"^\s*([A-Ga-g])([#b♯♭]?)(?:[\s_-]*(maj(?:or)?|min(?:or)
 
 GENRE_TO_INSTRUMENT = {
     "bass": "bass",
-    "drum": "percussion",
-    "drums": "percussion",
+    "drum": "drums",
+    "drums": "drums",
     "fx": "fx",
     "kick": "kick",
     "pad": "pad",

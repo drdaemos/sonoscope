@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT sample_id as \"sample_id!: i64\", original_path, new_path\n         FROM file_operations WHERE batch_id = ? ORDER BY id DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "sample_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "original_path",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "new_path",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a08c2fbf7a210a660a34d5b7d98ce98d754d67e2d788b3abb317498b0a110590"
+}

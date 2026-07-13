@@ -1,12 +1,28 @@
 import { fireEvent, render, screen } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import SampleDetailsDialog from "./SampleDetailsDialog.svelte";
+import type { TagDimension } from "$lib/stores/library";
 import { makeConflict, makeSample, makeTag } from "../../test/fixtures";
+
+const EDITABLE_DIMENSIONS: TagDimension[] = [
+  { name: "Type", value_type: "enum", values: ["loop", "one-shot"] },
+  { name: "Instrument", value_type: "multi_enum", values: ["kick", "snare", "drums"] },
+  { name: "Tempo", value_type: "numeric", values: [] },
+];
+
+function defaultProps() {
+  return {
+    editableDimensions: EDITABLE_DIMENSIONS,
+    onClose: vi.fn(),
+    onResolveConflict: vi.fn(),
+    onSetTag: vi.fn(),
+    onClearTag: vi.fn(),
+  };
+}
 
 describe("SampleDetailsDialog", () => {
   it("shows ML detections, file metadata, and resolves conflict choices", async () => {
-    const onClose = vi.fn();
-    const onResolveConflict = vi.fn();
+    const props = defaultProps();
     const sample = makeSample({
       id: 42,
       filename: "kick_loop.wav",
@@ -29,13 +45,7 @@ describe("SampleDetailsDialog", () => {
       ],
     });
 
-    render(SampleDetailsDialog, {
-      props: {
-        sample,
-        onClose,
-        onResolveConflict,
-      },
-    });
+    render(SampleDetailsDialog, { props: { sample, ...props } });
 
     expect(screen.getByRole("dialog", { name: "kick_loop.wav" })).toBeInTheDocument();
     expect(screen.getByText("ML Detections")).toBeInTheDocument();
@@ -44,9 +54,46 @@ describe("SampleDetailsDialog", () => {
     expect(screen.getByText("Decisions Needed")).toBeInTheDocument();
 
     await fireEvent.click(screen.getByRole("button", { name: /one-shot/i }));
-    expect(onResolveConflict).toHaveBeenCalledWith(42, "Type", "one-shot");
+    expect(props.onResolveConflict).toHaveBeenCalledWith(42, "Type", "one-shot");
 
     await fireEvent.click(screen.getByRole("button", { name: "Close sample details" }));
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves a tag for the selected dimension from the edit section", async () => {
+    const props = defaultProps();
+    const sample = makeSample({
+      id: 7,
+      filename: "mystery.wav",
+      tags: [],
+      conflicts: [],
+    });
+
+    render(SampleDetailsDialog, { props: { sample, ...props } });
+
+    expect(screen.getByText("Edit Tags")).toBeInTheDocument();
+
+    // The first editable dimension (Type) is preselected with its first value.
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(props.onSetTag).toHaveBeenCalledWith(7, "Type", "loop");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Clear user tag" }));
+    expect(props.onClearTag).toHaveBeenCalledWith(7, "Type");
+  });
+
+  it("defaults the edit value to the sample's current primary tag", async () => {
+    const props = defaultProps();
+    const sample = makeSample({
+      id: 9,
+      tags: [
+        makeTag({ dimension: "Type", value: "one-shot", source: "user", is_primary: true }),
+      ],
+      conflicts: [],
+    });
+
+    render(SampleDetailsDialog, { props: { sample, ...props } });
+
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(props.onSetTag).toHaveBeenCalledWith(9, "Type", "one-shot");
   });
 });
